@@ -18,7 +18,7 @@ namespace NetworkSoundBox.Controllers
 
         private readonly ILogger<WeatherForecastController> _logger;
 
-        public WeatherForecastController(ILogger<WeatherForecastController> logger)
+        public WeatherForecastController(ILogger<WeatherForecastController> logger, ITcpService tcpService )
         {
             _logger = logger;
         }
