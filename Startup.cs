@@ -30,7 +30,7 @@ namespace NetworkSoundBox
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
             });
-            services.AddScoped<ITcpService, TCPService>();
+            services.AddScoped<ITcpService, TcpService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
