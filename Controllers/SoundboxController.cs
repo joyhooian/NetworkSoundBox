@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using NetworkSoundBox.Models;
+using Newtonsoft.Json;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -12,9 +14,56 @@ namespace NetworkSoundBox.Controllers
     public class SoundboxController : ControllerBase
     {
         private readonly ITcpService _tcpService;
-        public SoundboxController(ITcpService tcpService)
+        private readonly MySqlDbContext _dbContext;
+        public SoundboxController(ITcpService tcpService, MySqlDbContext dbContext)
         {
             _tcpService = tcpService;
+            _dbContext = dbContext;
+        }
+
+        [HttpGet("Devices/{id}")]
+        public string GetDevices(int id)
+        {
+            using (_dbContext)
+            {
+                List<Device> list = _dbContext.Device.Where(device => device.userId == id).ToList();
+                list.ForEach(device =>
+                {
+                    if (_tcpService.DevicePool.Find(d => d.SN == device.sn) != null)
+                    {
+                        device.isOnline = true;
+                    }
+                    device.activation = "";
+                });
+                return JsonConvert.SerializeObject(list);
+            }
+        }
+
+        [HttpGet("DevicesAdmin")]
+        public string GetAllDevicesAdmin()
+        {
+            using (_dbContext)
+            {
+                List<Device> list = _dbContext.Device.ToList();
+                list.ForEach(device =>
+                {
+                    if (_tcpService.DevicePool.Find(d => d.SN == device.sn) != null)
+                    {
+                        device.isOnline = true;
+                    }
+                });
+                return JsonConvert.SerializeObject(list);
+            }
+        }
+
+        [HttpGet("User/{id}")]
+        public string GetUserName(int id)
+        {
+            using (_dbContext)
+            {
+                var user = _dbContext.User.Find(id);
+                return user.Name;
+            }
         }
 
         [HttpGet("PlayAndPause/SN{sn}Action{action}")]

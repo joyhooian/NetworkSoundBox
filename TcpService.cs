@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
+using NetworkSoundBox.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace NetworkSoundBox
 {
@@ -78,8 +80,10 @@ namespace NetworkSoundBox
         static Semaphore MessageQueueSem = null;
         static Thread MessageQueueTask = null;
         static Thread TcpListenerTask = null;
-        public TcpService()
+        private readonly MySqlDbContext _dbContext;
+        public TcpService(MySqlDbContext dbContext)
         {
+            _dbContext = dbContext;
             if (DevicePool == null)
             {
                 DevicePool = new List<DeviceHandle>();
@@ -150,11 +154,31 @@ namespace NetworkSoundBox
                     _deviceHandle.Client.Close();
                     _deviceHandle.Client.Dispose();
                     _deviceHandle.CTS.Dispose();
+                    Console.WriteLine("Device connection with IP: {0} has disconnected!", _deviceHandle.IPAddress);
+
                     if (DevicePool.Contains(_deviceHandle))
                     {
+                        var _dbContext = Startup._services.BuildServiceProvider().GetService<MySqlDbContext>();
+                        if (_dbContext != null)
+                        {
+                            try
+                            {
+                                Device device = _dbContext.Device.Where(device => device.sn == _deviceHandle.SN).FirstOrDefault();
+                                if (device != null)
+                                {
+                                    device.lastOnline = DateTime.Now;
+                                    _dbContext.Update(device);
+                                    _dbContext.SaveChanges();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.Message);
+                            }
+                        }
                         DevicePool.Remove(_deviceHandle);
                     }
-                    Console.WriteLine("Device connection with IP: {0} has disconnected!", _deviceHandle.IPAddress);
+
                     break;
                 }
                 try
