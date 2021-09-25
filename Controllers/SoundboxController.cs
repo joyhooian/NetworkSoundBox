@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using NetworkSoundBox.Models;
 using Newtonsoft.Json;
+using System.Net.Http;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -15,10 +16,12 @@ namespace NetworkSoundBox.Controllers
     {
         private readonly ITcpService _tcpService;
         private readonly MySqlDbContext _dbContext;
-        public SoundboxController(ITcpService tcpService, MySqlDbContext dbContext)
+        private readonly IHttpClientFactory _httpClientFactory;
+        public SoundboxController(ITcpService tcpService, MySqlDbContext dbContext, IHttpClientFactory httpClientFactory)
         {
             _tcpService = tcpService;
             _dbContext = dbContext;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpGet("Devices/{id}")]
@@ -153,6 +156,39 @@ namespace NetworkSoundBox.Controllers
             }
             device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x0E, 0xEF });
             return "Seccess!";
+        }
+
+        [HttpGet("TTS/SN{sn}FileIndex{fileIndex}Text{text}")]
+        public string TTS(string sn, int fileIndex, string text)
+        {
+            byte[] receiveBuffer = new byte[1024 * 1024 * 10];
+            int contentLength = 0;
+
+            var request = new HttpRequestMessage(HttpMethod.Get, "https://tts.jhy2015.cn/api/BluetoothPlayerTTS/TTS/" + text);
+            var client = _httpClientFactory.CreateClient();
+            var response = client.Send(request);
+
+            if(response.IsSuccessStatusCode)
+            {
+                var responseStream = response.Content.ReadAsStream();
+                contentLength = responseStream.Read(receiveBuffer);
+                ArraySegment<byte> content = new ArraySegment<byte>(receiveBuffer, 0, contentLength);
+
+                DeviceHandle device = null;
+                try
+                {
+                    device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                }
+                catch (Exception) { }
+                if (device == null)
+                {
+                    return "Filed! Device is not connected!";
+                }
+                List<byte> contentList = receiveBuffer.ToList();
+                Package package = new Package(fileIndex, content);
+            }
+
+            return "Success!";
         }
     }
 }

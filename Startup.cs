@@ -27,6 +27,7 @@ namespace NetworkSoundBox
         public void ConfigureServices(IServiceCollection services)
         {
             _services = services;
+            services.AddHttpClient();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddControllers();
             services.AddSwaggerGen(c =>

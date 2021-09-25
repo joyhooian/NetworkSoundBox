@@ -24,9 +24,20 @@ namespace NetworkSoundBox
 
     public enum CMD
     {
-        ACTIVATION  =   0x00,
-        LOGIN       =   0x01,
-        HEARTBEAT   =   0x02
+        ACTIVATION          =   0x00,
+        LOGIN               =   0x01,
+        HEARTBEAT           =   0x02,
+        PRE_DOWNLOAD_FILE   =   0xA0,
+        DOWNLOAD_FILE       =   0xA1,
+        AFTER_DOWNLOAD      =   0xA3
+    }
+
+    public enum DownloadStep
+    {
+        NO_ACTION,
+        PRE_DOWNLOAD,
+        DOWNLOADING,
+        AFTER_DOWNLOAD
     }
 
     public class DeviceHandle
@@ -38,6 +49,13 @@ namespace NetworkSoundBox
         public string Port { get; }
         public CancellationTokenSource CTS { get; }
 
+        public Thread StreamThread { get; }
+        public Queue<Package> streamPackageQueue { get; }
+        public Semaphore QueueSem { get; }
+        public Semaphore StreamSem { get; }
+        public DownloadStep DownloadStep { get; set; }
+        public Message Responce { get; set; }
+
         public DeviceHandle(TcpClient tcpClient, CancellationTokenSource cancellationTokenSource)
         {
             SN = "";
@@ -47,6 +65,92 @@ namespace NetworkSoundBox
             IPAddress = ((IPEndPoint)Client.Client.RemoteEndPoint).Address.ToString();
             Port = ((IPEndPoint)Client.Client.RemoteEndPoint).Port.ToString();
             Console.WriteLine("Device connected with IP: {0} on port {1}", IPAddress, Port);
+
+            StreamThread = new Thread(TransmitStreamTask);
+            streamPackageQueue = new Queue<Package>();
+            QueueSem = new Semaphore(0, 100);
+            StreamSem = new Semaphore(0, 100);
+            DownloadStep = DownloadStep.NO_ACTION;
+            StreamThread.Start(this);
+        }
+
+        void TransmitStreamTask(object deviceHandle)
+        {
+            DeviceHandle _deviceHandle = (DeviceHandle)deviceHandle;
+            Socket socket = _deviceHandle.Client.Client;
+            Queue<Package> packages = _deviceHandle.streamPackageQueue;
+            Message responce = _deviceHandle.Responce;
+            Semaphore queueSem = _deviceHandle.QueueSem;
+            Semaphore streamSem = _deviceHandle.StreamSem;
+            Package package;
+
+            while (true)
+            {
+                queueSem.WaitOne();
+                if (packages.Count != 0)
+                {
+                    package = packages.Dequeue();
+                    //发送文件头帧
+                    _deviceHandle.DownloadStep = DownloadStep.PRE_DOWNLOAD;
+                    byte lenL = (byte)(package.FrameCount % 256);
+                    byte lenH = (byte)(package.FrameCount / 256);
+                    socket.Send(new byte[] { 0x7E, (byte)package.CMD, 0x00, 0x03, (byte)package.FileIndex, lenH, lenL, 0xEF });
+                    while (true)
+                    {
+                        streamSem.WaitOne();
+                        if (responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                            && responce.DataList[0] == 0x00
+                            && responce.DataList[1] == 0x00)
+                        {
+                            _deviceHandle.DownloadStep = DownloadStep.DOWNLOADING;
+                            break;
+                        }
+                    }
+                    for (int index = 1; index <= package.FrameCount;)
+                    {
+                        socket.Send(package.Frames.Dequeue());
+                        while (true)
+                        {
+                            streamSem.WaitOne();
+                            if (responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                                && responce.DataList[0] * 256 + responce.DataList[1] == index)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    _deviceHandle.DownloadStep = DownloadStep.AFTER_DOWNLOAD;
+                    socket.Send(new byte[] { 0x7E, 0xA3, 0x00, 0x02, 0x00, (byte)package.FileIndex, 0xEF });
+                    while (true)
+                    {
+                        streamSem.WaitOne();
+                        if (responce.CMD == CMD.AFTER_DOWNLOAD
+                            && responce.DataList[0] * 256 + responce.DataList[1] == package.FileIndex)
+                        {
+                            _deviceHandle.DownloadStep = DownloadStep.NO_ACTION;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public class Package
+    {
+        public int FrameCount { get; }
+        public int FileIndex { get; }
+        public CMD CMD { get; }
+        public Queue<byte[]> Frames { get; }
+
+        public Package(int fileIndex, ArraySegment<byte> content)
+        {
+            FileIndex = fileIndex;
+            Frames = new Queue<byte[]>();
+            while(content.Count >= 255)
+            {
+                byte[] 
+            }
         }
     }
 
@@ -64,11 +168,11 @@ namespace NetworkSoundBox
             DeviceHandle = deviceHandle;
 
             int index = 1;
-            MessageLen = list[index++];
             CMD = (CMD)list[index++];
+            MessageLen = list[index++] * 256 + list[index++];
             if (index < list.Count - 1)
             {
-                DataList = RawBytes.Skip(index).Take(list.Count - index - 1).ToList();
+                DataList = RawBytes.Skip(index).Take(list.Count - index).ToList();
             }
         }
     }
@@ -213,7 +317,7 @@ namespace NetworkSoundBox
                     .TakeWhile(b => b != 0xEF)
                     .ToList();
                 frame.Add(0xEF);
-                if (frame.Count > 3 && frame.Count == frame[1] + 2)
+                if (frame.Count > 3 && frame.Count == frame[2]*256 + frame[3] + 5)
                 {
                     MessageQueue.Enqueue(new Message(frame, deviceHandle));
                     MessageQueueSem.Release();
@@ -266,11 +370,27 @@ namespace NetworkSoundBox
                         case CMD.HEARTBEAT:
                             deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
                             break;
+                        case CMD.PRE_DOWNLOAD_FILE:
+                        case CMD.AFTER_DOWNLOAD:
+                            switch (deviceHandle.DownloadStep)
+                            {
+                                case DownloadStep.PRE_DOWNLOAD:
+                                case DownloadStep.DOWNLOADING:
+                                case DownloadStep.AFTER_DOWNLOAD:
+                                    deviceHandle.Responce = message;
+                                    deviceHandle.StreamSem.Release();
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
                         default:
                             break;
                     }
                 }
             }
         }
+
+        
     }
 }
