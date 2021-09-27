@@ -98,23 +98,24 @@ namespace NetworkSoundBox
                     while (true)
                     {
                         streamSem.WaitOne();
-                        if (responce.CMD == CMD.PRE_DOWNLOAD_FILE
-                            && responce.DataList[0] == 0x00
-                            && responce.DataList[1] == 0x00)
+                        if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                            && _deviceHandle.Responce.DataList[0] == 0x00
+                            && _deviceHandle.Responce.DataList[1] == 0x00)
                         {
                             _deviceHandle.DownloadStep = DownloadStep.DOWNLOADING;
                             break;
                         }
                     }
-                    for (int index = 1; index <= package.FrameCount;)
+                    for (int index = 1; index <= package.Frames.Count;)
                     {
                         socket.Send(package.Frames.Dequeue());
                         while (true)
                         {
                             streamSem.WaitOne();
-                            if (responce.CMD == CMD.PRE_DOWNLOAD_FILE
-                                && responce.DataList[0] * 256 + responce.DataList[1] == index)
+                            if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                                && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == index)
                             {
+                                index++;
                                 break;
                             }
                         }
@@ -124,8 +125,8 @@ namespace NetworkSoundBox
                     while (true)
                     {
                         streamSem.WaitOne();
-                        if (responce.CMD == CMD.AFTER_DOWNLOAD
-                            && responce.DataList[0] * 256 + responce.DataList[1] == package.FileIndex)
+                        if (_deviceHandle.Responce.CMD == CMD.AFTER_DOWNLOAD
+                            && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == package.FileIndex)
                         {
                             _deviceHandle.DownloadStep = DownloadStep.NO_ACTION;
                             break;
@@ -160,6 +161,7 @@ namespace NetworkSoundBox
                 Frames.Enqueue(bytes);
                 offset += 255;
             }
+            CMD = CMD.PRE_DOWNLOAD_FILE;
         }
     }
 
@@ -374,10 +376,10 @@ namespace NetworkSoundBox
                         case CMD.ACTIVATION:
                             break;
                         case CMD.LOGIN:
-                            deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
+                            deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x01, 0x00, 0x00, 0xEF });
                             break;
                         case CMD.HEARTBEAT:
-                            deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
+                            deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x00, 0x00, 0xEF });
                             break;
                         case CMD.PRE_DOWNLOAD_FILE:
                         case CMD.AFTER_DOWNLOAD:
