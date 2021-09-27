@@ -186,6 +186,8 @@ namespace NetworkSoundBox.Controllers
                 }
                 List<byte> contentList = receiveBuffer.ToList();
                 Package package = new Package(fileIndex, content);
+                device.streamPackageQueue.Enqueue(package);
+                device.QueueSem.Release();
             }
 
             return "Success!";

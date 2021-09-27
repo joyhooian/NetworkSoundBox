@@ -147,9 +147,18 @@ namespace NetworkSoundBox
         {
             FileIndex = fileIndex;
             Frames = new Queue<byte[]>();
-            while(content.Count >= 255)
+            int offset = 0;
+            while(content.Count - offset > 0)
             {
-                byte[] 
+                byte[] bytes = new byte[256];
+                int dataRemain = content.Count - offset;
+                content.Slice(offset, dataRemain >= 255 ? 255 : dataRemain).CopyTo(bytes);
+                for (int i = 0; i < 255; i++)
+                {
+                    bytes[255] += bytes[i];
+                }
+                Frames.Enqueue(bytes);
+                offset += 255;
             }
         }
     }
@@ -172,7 +181,7 @@ namespace NetworkSoundBox
             MessageLen = list[index++] * 256 + list[index++];
             if (index < list.Count - 1)
             {
-                DataList = RawBytes.Skip(index).Take(list.Count - index).ToList();
+                DataList = RawBytes.Skip(index).Take(list.Count - index -1).ToList();
             }
         }
     }
