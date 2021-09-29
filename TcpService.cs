@@ -49,6 +49,8 @@ namespace NetworkSoundBox
         public string Port { get; }
         public CancellationTokenSource CTS { get; }
 
+        public static readonly int RetryTimes = 2;
+
         public Thread StreamThread { get; }
         public Queue<Package> streamPackageQueue { get; }
         public Semaphore QueueSem { get; }
@@ -83,7 +85,7 @@ namespace NetworkSoundBox
             Semaphore streamSem = _deviceHandle.StreamSem;
             Package package;
 
-            int retryTimes = 5;
+            int retryTimes = RetryTimes;
 
             while (true)
             {
@@ -108,7 +110,7 @@ namespace NetworkSoundBox
                                 && _deviceHandle.Responce.DataList[1] == 0x00)
                             {
                                 _deviceHandle.DownloadStep = DownloadStep.DOWNLOADING;
-                                retryTimes = 5;
+                                retryTimes = RetryTimes;
                                 break;
                             }
                             Console.WriteLine("[Device:{0}] Invalid responce from device", _deviceHandle.SN);
@@ -137,7 +139,7 @@ namespace NetworkSoundBox
                                 if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
                                     && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == index)
                                 {
-                                    retryTimes = 5;
+                                    retryTimes = RetryTimes;
                                     index++;
                                     break;
                                 }
@@ -172,7 +174,7 @@ namespace NetworkSoundBox
                                 && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == package.FileIndex)
                             {
                                 _deviceHandle.DownloadStep = DownloadStep.NO_ACTION;
-                                retryTimes = 5;
+                                retryTimes = RetryTimes;
                                 break;
                             }
                             Console.WriteLine("[Device:{0}] Invalid responce from device", _deviceHandle.SN);
