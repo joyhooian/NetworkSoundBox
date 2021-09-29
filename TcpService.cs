@@ -89,12 +89,14 @@ namespace NetworkSoundBox
                 queueSem.WaitOne();
                 if (packages.Count != 0)
                 {
+                    Console.WriteLine("Now we get a package to send to device {0}", _deviceHandle.SN);
                     package = packages.Dequeue();
                     //发送文件头帧
                     _deviceHandle.DownloadStep = DownloadStep.PRE_DOWNLOAD;
                     byte lenL = (byte)(package.FrameCount % 256);
                     byte lenH = (byte)(package.FrameCount / 256);
                     socket.Send(new byte[] { 0x7E, (byte)package.CMD, 0x00, 0x03, (byte)package.FileIndex, lenH, lenL, 0xEF });
+                    Console.WriteLine("[Device:{0}] Begin Frame has been sent", _deviceHandle.SN);
                     while (true)
                     {
                         streamSem.WaitOne();
@@ -109,6 +111,7 @@ namespace NetworkSoundBox
                     for (int index = 1; index <= package.Frames.Count;)
                     {
                         socket.Send(package.Frames.Dequeue());
+                        Console.WriteLine("[Device:{0}] Payload [{1}/{2}] has been sent", _deviceHandle.SN, index, package.Frames.Count);
                         while (true)
                         {
                             streamSem.WaitOne();
@@ -122,6 +125,7 @@ namespace NetworkSoundBox
                     }
                     _deviceHandle.DownloadStep = DownloadStep.AFTER_DOWNLOAD;
                     socket.Send(new byte[] { 0x7E, 0xA3, 0x00, 0x02, 0x00, (byte)package.FileIndex, 0xEF });
+                    Console.WriteLine("[Device:{0}] Payloads have all been sent, waiting for device to confirm", _deviceHandle.SN);
                     while (true)
                     {
                         streamSem.WaitOne();
@@ -132,6 +136,7 @@ namespace NetworkSoundBox
                             break;
                         }
                     }
+                    Console.WriteLine("[Device:{0}] Device has confirmed, exit sending procedure and waiting for next package", _deviceHandle.SN);
                 }
             }
         }
@@ -360,6 +365,7 @@ namespace NetworkSoundBox
                         if (!DevicePool.Contains(deviceHandle))
                         {
                             DevicePool.Add(deviceHandle);
+                            Console.WriteLine("Device connection has established with SN {0}. Now we have {1} devices", deviceHandle.SN, DevicePool.Count);
                         }
                         deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
                     }
