@@ -205,15 +205,22 @@ namespace NetworkSoundBox
             FileIndex = fileIndex;
             Frames = new Queue<byte[]>();
             int offset = 0;
+            int index = 0;
             while(content.Count - offset > 0)
             {
-                byte[] bytes = new byte[256];
+                index++;
+                byte[] bytes = new byte[261];
+                bytes[0] = 0x7E;
+                bytes[1] = 0xA1;
+                bytes[2] = (byte)(index / 256);
+                bytes[3] = (byte)(index % 256);
                 int dataRemain = content.Count - offset;
-                content.Slice(offset, dataRemain >= 255 ? 255 : dataRemain).CopyTo(bytes);
-                for (int i = 0; i < 255; i++)
+                content.Slice(offset, dataRemain >= 255 ? 255 : dataRemain).CopyTo(bytes, 4);
+                for (int i = 4; i < 259; i++)
                 {
-                    bytes[255] += bytes[i];
+                    bytes[259] += bytes[i];
                 }
+                bytes[260] = 0xEF;
                 Frames.Enqueue(bytes);
                 offset += 255;
             }
