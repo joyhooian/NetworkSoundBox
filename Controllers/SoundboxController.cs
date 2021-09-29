@@ -177,9 +177,12 @@ namespace NetworkSoundBox.Controllers
                 DeviceHandle device = null;
                 try
                 {
-                    device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                    device = _tcpService.DevicePool.First(device => device.SN == sn);
                 }
-                catch (Exception) { }
+                catch (Exception ex) 
+                {
+                    Console.WriteLine(ex.Message);
+                }
                 if (device == null)
                 {
                     return "Filed! Device is not connected!";
