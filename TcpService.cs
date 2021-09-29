@@ -79,10 +79,11 @@ namespace NetworkSoundBox
             DeviceHandle _deviceHandle = (DeviceHandle)deviceHandle;
             Socket socket = _deviceHandle.Client.Client;
             Queue<Package> packages = _deviceHandle.streamPackageQueue;
-            Message responce = _deviceHandle.Responce;
             Semaphore queueSem = _deviceHandle.QueueSem;
             Semaphore streamSem = _deviceHandle.StreamSem;
             Package package;
+
+            int retryTimes = 5;
 
             while (true)
             {
@@ -91,50 +92,101 @@ namespace NetworkSoundBox
                 {
                     Console.WriteLine("Now we get a package to send to device {0}", _deviceHandle.SN);
                     package = packages.Dequeue();
-                    //发送文件头帧
+                    //发送起始帧
                     _deviceHandle.DownloadStep = DownloadStep.PRE_DOWNLOAD;
-                    byte lenL = (byte)(package.FrameCount % 256);
-                    byte lenH = (byte)(package.FrameCount / 256);
+                    byte lenL = (byte)(package.Frames.Count % 256);
+                    byte lenH = (byte)(package.Frames.Count / 256);
                     socket.Send(new byte[] { 0x7E, (byte)package.CMD, 0x00, 0x03, (byte)package.FileIndex, lenH, lenL, 0xEF });
                     Console.WriteLine("[Device:{0}] Begin Frame has been sent", _deviceHandle.SN);
-                    while (true)
+                    //等待设备回复起始帧
+                    while (retryTimes > 0)
                     {
-                        streamSem.WaitOne();
-                        if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
-                            && _deviceHandle.Responce.DataList[0] == 0x00
-                            && _deviceHandle.Responce.DataList[1] == 0x00)
+                        if(streamSem.WaitOne(5000))
                         {
-                            _deviceHandle.DownloadStep = DownloadStep.DOWNLOADING;
-                            break;
+                            if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                                && _deviceHandle.Responce.DataList[0] == 0x00
+                                && _deviceHandle.Responce.DataList[1] == 0x00)
+                            {
+                                _deviceHandle.DownloadStep = DownloadStep.DOWNLOADING;
+                                retryTimes = 5;
+                                break;
+                            }
+                            Console.WriteLine("[Device:{0}] Invalid responce from device", _deviceHandle.SN);
                         }
+                        else
+                        {
+                            Console.WriteLine("[Device:{0}] Timeout while waiting responce from device", _deviceHandle.SN);
+                        }
+                        Console.WriteLine("[Device:{0}] Remain retry times: {1}", _deviceHandle.SN, --retryTimes);
                     }
+                    if (retryTimes <= 0)
+                    {
+                        Console.WriteLine("Retry times run out, abort package sending");
+                        continue;
+                    }
+                    //循环分包发送
                     for (int index = 1; index <= package.Frames.Count;)
                     {
                         socket.Send(package.Frames.Dequeue());
                         Console.WriteLine("[Device:{0}] Payload [{1}/{2}] has been sent", _deviceHandle.SN, index, package.Frames.Count);
-                        while (true)
+                        //等待设备确认接收包
+                        while (retryTimes > 0)
                         {
-                            streamSem.WaitOne();
-                            if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
-                                && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == index)
+                            if (streamSem.WaitOne(5000))
                             {
-                                index++;
-                                break;
+                                if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
+                                    && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == index)
+                                {
+                                    retryTimes = 5;
+                                    index++;
+                                    break;
+                                }
+                                Console.WriteLine("[Device:{0}] Invalid responce from device", _deviceHandle.SN);
                             }
+                            else
+                            {
+                                Console.WriteLine("[Device:{0}] Timeout while waiting responce from device", _deviceHandle.SN);
+                            }
+                            Console.WriteLine("[Device:{0}] Remain retry times: {1}", _deviceHandle.SN, --retryTimes);
+                        }
+                        if (retryTimes <= 0)
+                        {
+                            break;
                         }
                     }
+                    if (retryTimes <= 0)
+                    {
+                        Console.WriteLine("Retry times run out, abort package sending");
+                        continue;
+                    }
+                    //发送结束帧
                     _deviceHandle.DownloadStep = DownloadStep.AFTER_DOWNLOAD;
                     socket.Send(new byte[] { 0x7E, 0xA3, 0x00, 0x02, 0x00, (byte)package.FileIndex, 0xEF });
                     Console.WriteLine("[Device:{0}] Payloads have all been sent, waiting for device to confirm", _deviceHandle.SN);
-                    while (true)
+                    //等待设备回复结束帧，确认文件接收完毕
+                    while (retryTimes > 0)
                     {
-                        streamSem.WaitOne();
-                        if (_deviceHandle.Responce.CMD == CMD.AFTER_DOWNLOAD
-                            && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == package.FileIndex)
+                        if (streamSem.WaitOne(5000))
                         {
-                            _deviceHandle.DownloadStep = DownloadStep.NO_ACTION;
-                            break;
+                            if (_deviceHandle.Responce.CMD == CMD.AFTER_DOWNLOAD
+                                && _deviceHandle.Responce.DataList[0] * 256 + _deviceHandle.Responce.DataList[1] == package.FileIndex)
+                            {
+                                _deviceHandle.DownloadStep = DownloadStep.NO_ACTION;
+                                retryTimes = 5;
+                                break;
+                            }
+                            Console.WriteLine("[Device:{0}] Invalid responce from device", _deviceHandle.SN);
                         }
+                        else
+                        {
+                            Console.WriteLine("[Device:{0}] Timeout while waiting responce from device", _deviceHandle.SN);
+                        }
+                        Console.WriteLine("[Device:{0}] Remain retry times: {1}", _deviceHandle.SN, --retryTimes);
+                    }
+                    if (retryTimes <= 0)
+                    {
+                        Console.WriteLine("Retry times run out, abort package sending");
+                        continue;
                     }
                     Console.WriteLine("[Device:{0}] Device has confirmed, exit sending procedure and waiting for next package", _deviceHandle.SN);
                 }
@@ -144,7 +196,6 @@ namespace NetworkSoundBox
 
     public class Package
     {
-        public int FrameCount { get; }
         public int FileIndex { get; }
         public CMD CMD { get; }
         public Queue<byte[]> Frames { get; }
