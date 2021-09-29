@@ -94,6 +94,7 @@ namespace NetworkSoundBox
                 queueSem.WaitOne();
                 if (packages.Count != 0)
                 {
+                    retryTimes = RetryTimes;
                     Console.WriteLine("Now we get a package to send to device {0}", _deviceHandle.SN);
                     package = packages.Dequeue();
                     //发送起始帧
@@ -430,10 +431,16 @@ namespace NetworkSoundBox
                     {
                         deviceHandle.SN = System.Text.Encoding.ASCII.GetString(message.DataList.ToArray());
                         deviceHandle.DeviceType = DeviceType.TEST;
-                        if (!DevicePool.Contains(deviceHandle))
+                        if (DevicePool.FirstOrDefault(device => device.SN == deviceHandle.SN) == null)
                         {
                             DevicePool.Add(deviceHandle);
                             Console.WriteLine("Device connection has established with SN {0}. Now we have {1} devices", deviceHandle.SN, DevicePool.Count);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Device {0} has already connected, aborting!", deviceHandle.SN);
+                            deviceHandle.CTS.Cancel();
+                            continue;
                         }
                         deviceHandle.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
                     }
