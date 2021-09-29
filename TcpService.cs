@@ -48,6 +48,7 @@ namespace NetworkSoundBox
         public string IPAddress { get; }
         public string Port { get; }
         public CancellationTokenSource CTS { get; }
+        public int HeartBeatCnt { get; set; }
 
         public static readonly int RetryTimes = 2;
 
@@ -61,6 +62,7 @@ namespace NetworkSoundBox
         public DeviceHandle(TcpClient tcpClient, CancellationTokenSource cancellationTokenSource)
         {
             SN = "";
+            HeartBeatCnt = 300;
             DeviceType = DeviceType.NONE;
             Client = tcpClient;
             CTS = cancellationTokenSource;
@@ -207,15 +209,15 @@ namespace NetworkSoundBox
             FileIndex = fileIndex;
             Frames = new Queue<byte[]>();
             int offset = 0;
-            int index = 0;
+            int packageIndex = 0;
             while(content.Count - offset > 0)
             {
-                index++;
+                packageIndex++;
                 byte[] bytes = new byte[261];
                 bytes[0] = 0x7E;
                 bytes[1] = 0xA1;
-                bytes[2] = (byte)(index / 256);
-                bytes[3] = (byte)(index % 256);
+                bytes[2] = (byte)(packageIndex / 256);
+                bytes[3] = (byte)(packageIndex % 256);
                 int dataRemain = content.Count - offset;
                 content.Slice(offset, dataRemain >= 255 ? 255 : dataRemain).CopyTo(bytes, 4);
                 for (int i = 4; i < 259; i++)
@@ -368,6 +370,7 @@ namespace NetworkSoundBox
                     {
                         _deviceHandle.CTS.Cancel();
                     }
+                    _deviceHandle.HeartBeatCnt = 300;
                     for (int i = 0; i < receiveCount; i++)
                     {
                         data.Add(bytes[i]);
@@ -378,6 +381,11 @@ namespace NetworkSoundBox
                     if (data.Count != 0)
                     {
                         ReceiveMessage(data, _deviceHandle);
+                    }
+                    _deviceHandle.HeartBeatCnt--;
+                    if (_deviceHandle.HeartBeatCnt <= 0)
+                    {
+                        _deviceHandle.CTS.Cancel();
                     }
                 }
             }
