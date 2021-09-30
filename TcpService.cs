@@ -344,7 +344,6 @@ namespace NetworkSoundBox
             {
                 if (_deviceHandle.CTS.Token.IsCancellationRequested)
                 {
-                    while (_deviceHandle.StreamThread.IsAlive) ;
                     _deviceHandle.Client.Close();
                     _deviceHandle.Client.Dispose();
                     _deviceHandle.CTS.Dispose();
