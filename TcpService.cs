@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Net;
 using NetworkSoundBox.Models;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace NetworkSoundBox
 {
@@ -91,6 +92,10 @@ namespace NetworkSoundBox
 
             while (true)
             {
+                if (_deviceHandle.CTS.IsCancellationRequested)
+                {
+                    break;
+                }
                 queueSem.WaitOne();
                 if (packages.Count != 0)
                 {
@@ -98,9 +103,10 @@ namespace NetworkSoundBox
                     Console.WriteLine("Now we get a package to send to device {0}", _deviceHandle.SN);
                     package = packages.Dequeue();
                     //发送起始帧
+                    int frameCount = package.Frames.Count;
                     _deviceHandle.DownloadStep = DownloadStep.PRE_DOWNLOAD;
-                    byte lenL = (byte)(package.Frames.Count % 256);
-                    byte lenH = (byte)(package.Frames.Count / 256);
+                    byte lenL = (byte)(frameCount % 256);
+                    byte lenH = (byte)(frameCount / 256);
                     //等待设备回复起始帧
                     while (retryTimes > 0)
                     {
@@ -130,13 +136,13 @@ namespace NetworkSoundBox
                         continue;
                     }
                     //循环分包发送
-                    for (int index = 1; index <= package.Frames.Count;)
+                    for (int index = 1; index <= frameCount;)
                     {
                         //等待设备确认接收包
                         while (retryTimes > 0)
                         {
                             socket.Send(package.Frames.Dequeue());
-                            Console.WriteLine("[Device:{0}] Payload [{1}/{2}] has been sent", _deviceHandle.SN, index, package.Frames.Count);
+                            Console.WriteLine("[Device:{0}] Payload [{1}/{2}] has been sent", _deviceHandle.SN, index, frameCount);
                             if (streamSem.WaitOne(5000))
                             {
                                 if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
@@ -334,6 +340,7 @@ namespace NetworkSoundBox
             {
                 if (_deviceHandle.CTS.Token.IsCancellationRequested)
                 {
+                    while (_deviceHandle.StreamThread.IsAlive) ;
                     _deviceHandle.Client.Close();
                     _deviceHandle.Client.Dispose();
                     _deviceHandle.CTS.Dispose();
@@ -482,7 +489,5 @@ namespace NetworkSoundBox
                 }
             }
         }
-
-        
     }
 }
