@@ -199,7 +199,11 @@ namespace NetworkSoundBox
                         Console.WriteLine("Retry times run out, abort package sending");
                         continue;
                     }
-                    Console.WriteLine("[Device:{0}] Device has confirmed, exit sending procedure and waiting for next package", _deviceHandle.SN);
+                    if (packages.Count == 0)
+                    {
+                        socket.Send(new byte[] { 0x7E, 0xA3, 0x00, 0x02, 0x00, 0x00, 0xEF });
+                        Console.WriteLine("[Device:{0}] Device has confirmed, exit sending procedure and waiting for next package", _deviceHandle.SN);
+                    }
                 }
             }
         }
