@@ -27,10 +27,11 @@ namespace NetworkSoundBox
         public void ConfigureServices(IServiceCollection services)
         {
             _services = services;
-            //services.AddHostedService<ServerService>();
             services.AddHttpClient();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddControllers();
+            services.AddHostedService<ServerService>();
+            //services.AddHostedService<ProcessMessageService>();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
