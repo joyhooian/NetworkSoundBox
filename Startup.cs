@@ -30,7 +30,7 @@ namespace NetworkSoundBox
             services.AddHttpClient();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddControllers();
-            services.AddHostedService<ServerService>();
+            //services.AddHostedService<ServerService>();
             //services.AddHostedService<ProcessMessageService>();
             services.AddSwaggerGen(c =>
             {

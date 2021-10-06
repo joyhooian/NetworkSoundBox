@@ -112,7 +112,7 @@ namespace NetworkSoundBox
                     {
                         socket.Send(new byte[] { 0x7E, (byte)package.CMD, 0x00, 0x03, (byte)package.FileIndex, lenH, lenL, 0xEF });
                         Console.WriteLine("[Device:{0}] Begin Frame has been sent", _deviceHandle.SN);
-                        if (streamSem.WaitOne(5000))
+                        if (streamSem.WaitOne(60 * 1000))
                         {
                             if (_deviceHandle.Responce.CMD == CMD.PRE_DOWNLOAD_FILE
                                 && _deviceHandle.Responce.DataList[0] == 0x00

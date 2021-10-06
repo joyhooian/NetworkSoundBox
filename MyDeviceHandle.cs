@@ -13,31 +13,20 @@ namespace NetworkSoundBox
     public interface IDeviceSvrService
     {
         public List<MyDeviceHandle> MyDeviceHandles { get; }
-        public Queue<MyMessage> ProcessMessages { get; }
-        public Queue<ReplyMessage> ReplyMessages { get; }
-        public Semaphore ProcessMessageSem { get; }
-        public Semaphore ReplyMessageSem { get; }
     }
 
     public class DeviceSvrService : IDeviceSvrService
     {
         public static readonly List<MyDeviceHandle> MyDeviceHandles = new List<MyDeviceHandle>();
-        public static readonly Queue<MyMessage> ProcessMessages = new Queue<MyMessage>();
-        public static readonly Queue<ReplyMessage> ReplyMessages = new Queue<ReplyMessage>();
-        public static readonly Semaphore ProcessMessageSem = new Semaphore(0, 100);
-        public static readonly Semaphore ReplyMessageSem = new Semaphore(0, 100);
 
         List<MyDeviceHandle> IDeviceSvrService.MyDeviceHandles => MyDeviceHandles;
-        Queue<MyMessage> IDeviceSvrService.ProcessMessages => ProcessMessages;
-        Queue<ReplyMessage> IDeviceSvrService.ReplyMessages => ReplyMessages;
-        Semaphore IDeviceSvrService.ProcessMessageSem => ProcessMessageSem;
-        Semaphore IDeviceSvrService.ReplyMessageSem => ReplyMessageSem;
     }
 
     public class MyDeviceHandle
     {
         private static readonly int MAX_RETRY_TIMES = 3;
-
+        private Queue<ReplyMessage> OutboxQueue { get; }
+        private Semaphore OutboxSem { get; }
         public CancellationTokenSource CancellationTokenSource { get; }
         public Socket Socket { get; }
         public IPAddress IPAddress { get; }
@@ -45,11 +34,14 @@ namespace NetworkSoundBox
         private List<byte> Data { get; }
         private byte[] receiveBuffer { get; }
         private Queue<File> Files { get; }
+        private Semaphore FilesSem { get; }
         private string SN { get; set; }
         private Semaphore ProcessSem { get; } 
 
         public MyDeviceHandle(Socket socket)
         {
+            OutboxQueue = new Queue<ReplyMessage>();
+            OutboxSem = new Semaphore(0, 100);
             CancellationTokenSource = new CancellationTokenSource();
             Socket = socket;
             IPAddress = ((IPEndPoint)socket.RemoteEndPoint).Address;
@@ -60,7 +52,9 @@ namespace NetworkSoundBox
             Data = new List<byte>();
             receiveBuffer = new byte[300];
             Files = new Queue<File>();
+
             ProcessSem = new Semaphore(1, 1);
+            var outboxTask = OutboxTask();
             var task = DeviceHandleTask();
         }
 
@@ -90,7 +84,7 @@ namespace NetworkSoundBox
                 int endOffset = FindEnd(startOffset, data);
                 if (data[endOffset] == 0xEF && Enum.IsDefined(typeof(CMD), (int)data[startOffset + 1]))
                 {
-                    var p = Process(new MyMessage(data.Skip(startOffset).Take(endOffset - startOffset + 1).ToList()));
+                    var p = HandleMessage(new MyMessage(data.Skip(startOffset).Take(endOffset - startOffset + 1).ToList()));
                     data.RemoveRange(0, endOffset + 1);
                 }
                 else
@@ -164,42 +158,7 @@ namespace NetworkSoundBox
             }
         }
 
-        private async Task Reply(CMD command)
-        {
-            await Task.Yield();
-            int retryTimes = 0;
-            while (retryTimes < MAX_RETRY_TIMES)
-            {
-                if (CancellationTokenSource.IsCancellationRequested)
-                {
-                    break;
-                }
-                try
-                {
-                    switch (command)
-                    {
-                        case CMD.LOGIN:
-                            Socket.Send(new byte[] { 0x7E, 0x01, 0x00, 0x00, 0xEF });
-                            return;
-                        default:
-                            break;
-                    }
-                }
-                catch (SocketException ex)
-                {
-                    if (ex.SocketErrorCode == SocketError.TimedOut)
-                    {
-                        retryTimes++;
-                    }
-                    else
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-            }
-        }
-
-        private async Task Process(MyMessage message)
+        private async Task HandleMessage(MyMessage message)
         {
             await Task.Yield();
             ProcessSem.WaitOne();
@@ -238,13 +197,68 @@ namespace NetworkSoundBox
                                 Port,
                                 DeviceSvrService.MyDeviceHandles.Count);
                     }
-                    var reply = Reply(CMD.LOGIN);
+                    OutboxQueue.Enqueue(new ReplyMessage(CMD.LOGIN));
+                    OutboxSem.Release();
                     break;
                 default:
                     break;
             }
             Console.WriteLine("Leaving Process()");
             ProcessSem.Release();
+        }
+
+        private async Task OutboxTask()
+        {
+            await Task.Yield();
+            int retryTimes;
+            while(true)
+            {
+                OutboxSem.WaitOne(1000);
+                if (OutboxQueue.Count > 0)
+                {
+                    ReplyMessage message = OutboxQueue.Dequeue();
+                    retryTimes = 0;
+                    while (retryTimes < MAX_RETRY_TIMES)
+                    {
+                        if (CancellationTokenSource.IsCancellationRequested)
+                        {
+                            return;
+                        }
+                        try
+                        {
+                            switch (message.Command)
+                            {
+                                case CMD.LOGIN:
+                                    Socket.Send(new byte[] { 0x7E, 0x01, 0x00, 0x00, 0xEF });
+                                    retryTimes = MAX_RETRY_TIMES;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        catch(SocketException ex)
+                        {
+                            if (ex.SocketErrorCode == SocketError.TimedOut)
+                            {
+                                retryTimes++;
+                            }
+                            else
+                            {
+                                Console.WriteLine(ex.Message);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private async Task HandleFiles()
+        {
+            await Task.Yield();
+            while(true)
+            {
+
+            }
         }
     }
 
@@ -264,8 +278,12 @@ namespace NetworkSoundBox
 
     public class ReplyMessage
     {
-        public MyDeviceHandle DeviceHandle { get; }
+        public CMD Command { get; }
 
+        public ReplyMessage(CMD command)
+        {
+            Command = command;
+        }
     }
 
     public class File
