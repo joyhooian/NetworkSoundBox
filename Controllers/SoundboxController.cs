@@ -159,7 +159,7 @@ namespace NetworkSoundBox.Controllers
         }
 
         [HttpGet("TTS/SN{sn}FileIndex{fileIndex}Text{text}")]
-        public string TTS(string sn, int fileIndex, string text)
+        public FileResult TTS(string sn, int fileIndex, string text)
         {
             byte[] receiveBuffer = new byte[1024 * 1024 * 10];
             int contentLength = 0;
@@ -185,15 +185,16 @@ namespace NetworkSoundBox.Controllers
                 }
                 if (device == null)
                 {
-                    return "Filed! Device is not connected!";
+                    return null;
+                    //return "Filed! Device is not connected!";
                 }
-                List<byte> contentList = receiveBuffer.ToList();
                 Package package = new Package(fileIndex, content);
                 device.streamPackageQueue.Enqueue(package);
                 device.QueueSem.Release();
+                return new FileContentResult(content.ToArray(), "audio/mp3");
             }
-
-            return "Success!";
+            return null;
+            //return "Success!";
         }
     }
 }
