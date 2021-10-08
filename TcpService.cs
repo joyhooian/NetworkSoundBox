@@ -413,7 +413,11 @@ namespace NetworkSoundBox
         static private void ReceiveMessage(List<byte> message, DeviceHandle deviceHandle)
         {
             Console.WriteLine("Received {0} bytes message", message.Count);
-            while (message.IndexOf(0x7E) < message.IndexOf(0xEF))
+            Console.Write("Raw Data: ");
+            message.ForEach(b => Console.Write("0x{0:X} ", b));
+            Console.WriteLine();
+
+            while (0 <= message.IndexOf(0x7E) && message.IndexOf(0x7E) < message.IndexOf(0xEF))
             {
                 List<byte> frame = message
                     .Skip(message.FindIndex(b => b == 0x7E))
