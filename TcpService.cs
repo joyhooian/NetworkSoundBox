@@ -410,6 +410,12 @@ namespace NetworkSoundBox
             }
         }
 
+        private static int FindEnd(int startOffset, List<byte> data)
+        {
+            int messageLen = data[startOffset + 2] | data[startOffset + 3];
+            return messageLen + 4 < data.Count ? messageLen + 4 : startOffset;
+        }
+
         static private void ReceiveMessage(List<byte> message, DeviceHandle deviceHandle)
         {
             Console.WriteLine("Received {0} bytes message", message.Count);
@@ -417,23 +423,45 @@ namespace NetworkSoundBox
             message.ForEach(b => Console.Write("0x{0:X} ", b));
             Console.WriteLine();
 
-            while (0 <= message.IndexOf(0x7E) && message.IndexOf(0x7E) < message.IndexOf(0xEF))
+            while (true)
             {
-                List<byte> frame = message
-                    .Skip(message.FindIndex(b => b == 0x7E))
-                    .TakeWhile(b => b != 0xEF)
-                    .ToList();
-                frame.Add(0xEF);
-                if (frame.Count > 3 && frame.Count == frame[2] * 256 + frame[3] + 5)
+                int startOffset = message.IndexOf(0x7E);
+                if (startOffset < 0)
                 {
-                    MessageQueue.Enqueue(new Message(frame, deviceHandle));
-                    MessageQueueSem.Release();
-                    frame.ForEach(b => Console.Write("0x{0:X} ", b));
-                    Console.WriteLine();
+                    break;
                 }
-                message.RemoveRange(message.IndexOf(0x7E), frame.Count);
+                int endOffset = FindEnd(startOffset, message);
+                if (message[endOffset] == 0xEF && Enum.IsDefined(typeof(CMD), (int)message[startOffset + 1]))
+                {
+                    MessageQueue.Enqueue(new Message(message.Skip(startOffset).Take(endOffset - startOffset + 1).ToList(), deviceHandle));
+                    MessageQueueSem.Release();
+                    message.RemoveRange(0, endOffset + 1);
+                }
+                else
+                {
+                    message.RemoveRange(0, startOffset + 1);
+                }
             }
             message.RemoveRange(0, message.Count);
+
+            //while (0 <= message.IndexOf(0x7E) && message.IndexOf(0x7E) < message.IndexOf(0xEF))
+            //{
+            //    int dataLen = message[message.IndexOf(0x7E)]
+            //    List<byte> frame = message
+            //        .Skip(message.FindIndex(b => b == 0x7E))
+            //        .TakeWhile(b => b != 0xEF)
+            //        .ToList();
+            //    frame.Add(0xEF);
+            //    if (frame.Count > 3 && frame.Count == frame[2] * 256 + frame[3] + 5)
+            //    {
+            //        MessageQueue.Enqueue(new Message(frame, deviceHandle));
+            //        MessageQueueSem.Release();
+            //        frame.ForEach(b => Console.Write("0x{0:X} ", b));
+            //        Console.WriteLine();
+            //    }
+            //    message.RemoveRange(message.IndexOf(0x7E), frame.Count);
+            //}
+            //message.RemoveRange(0, message.Count);
         }
 
         static private void PerseMessage()
