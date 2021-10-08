@@ -161,6 +161,7 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("TTS/SN{sn}FileIndex{fileIndex}Text{text}")]
         public FileResult TTS(string sn, int fileIndex, string text)
         {
+            Console.WriteLine("New TTS Task is required to device[{0}] with {1} words", sn, text.Length);
             byte[] receiveBuffer = new byte[1024 * 1024 * 10];
             int contentLength = 0;
 
@@ -189,6 +190,7 @@ namespace NetworkSoundBox.Controllers
                     //return "Filed! Device is not connected!";
                 }
                 Package package = new Package(fileIndex, content);
+                Console.WriteLine("Pushed into Queue");
                 device.streamPackageQueue.Enqueue(package);
                 device.QueueSem.Release();
                 return new FileContentResult(content.ToArray(), "audio/mp3");
