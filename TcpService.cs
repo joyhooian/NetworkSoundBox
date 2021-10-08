@@ -104,6 +104,7 @@ namespace NetworkSoundBox
                         retryTimes = RetryTimes;
                         Console.WriteLine("Now we get a package to send to device {0}", _deviceHandle.SN);
                         package = packages.Dequeue();
+                        Console.WriteLine("Transmition task in queue: {0}", packages.Count);
                         //发送起始帧
                         int frameCount = package.Frames.Count;
                         _deviceHandle.DownloadStep = DownloadStep.PRE_DOWNLOAD;
@@ -443,25 +444,6 @@ namespace NetworkSoundBox
                 }
             }
             message.RemoveRange(0, message.Count);
-
-            //while (0 <= message.IndexOf(0x7E) && message.IndexOf(0x7E) < message.IndexOf(0xEF))
-            //{
-            //    int dataLen = message[message.IndexOf(0x7E)]
-            //    List<byte> frame = message
-            //        .Skip(message.FindIndex(b => b == 0x7E))
-            //        .TakeWhile(b => b != 0xEF)
-            //        .ToList();
-            //    frame.Add(0xEF);
-            //    if (frame.Count > 3 && frame.Count == frame[2] * 256 + frame[3] + 5)
-            //    {
-            //        MessageQueue.Enqueue(new Message(frame, deviceHandle));
-            //        MessageQueueSem.Release();
-            //        frame.ForEach(b => Console.Write("0x{0:X} ", b));
-            //        Console.WriteLine();
-            //    }
-            //    message.RemoveRange(message.IndexOf(0x7E), frame.Count);
-            //}
-            //message.RemoveRange(0, message.Count);
         }
 
         static private void PerseMessage()
