@@ -227,14 +227,14 @@ namespace NetworkSoundBox
                                         break;
                                     }
                                 }
-                                if (null != DeviceSvrService.MyDeviceHandles.FirstOrDefault(device => device.SN == SN))
+                                DeviceHandler device = DeviceSvrService.MyDeviceHandles.FirstOrDefault(device => device.SN == SN);
+                                if (device != null)
                                 {
-                                    CTS.Cancel();
-                                    Console.WriteLine("Device with SN \"{0}\" has existed, socket @{1}:{2} will be closed!",
-                                        SN,
-                                        IPAddress,
-                                        Port);
-                                    break;
+                                    device.CTS.Cancel();
+                                    DeviceSvrService.MyDeviceHandles.Remove(device);
+                                    device = null;
+                                    //CTS.Cancel();
+                                    Console.WriteLine("Device with SN \"{0}\" has existed, renew device", SN);
                                 }
                                 DeviceSvrService.MyDeviceHandles.Add(this);
                                 Console.WriteLine("Device with SN \"{0}\" has loged in, socket @{1}:{2}. Now we have got {3} devices.",
