@@ -63,6 +63,7 @@ namespace NetworkSoundBox
         private readonly Task _handleOutboxTask;
         private readonly Task _handleFilesTask;
         private int _fileCount = 0;
+        private RetryManager heartbeat;
 
         public DeviceHandler(Socket socket)
         {
@@ -94,6 +95,13 @@ namespace NetworkSoundBox
             {
                 CTS.Cancel();
                 Console.WriteLine("Device @{0}:{1} login timeout!", ((IPEndPoint)Socket.RemoteEndPoint).Address, ((IPEndPoint)Socket.RemoteEndPoint).Port);
+            }
+        }
+        private void HeartbeatTimeoutCallback(object state)
+        {
+            if (heartbeat != null)
+            {
+                heartbeat.Set();
             }
         }
         private void ParseMessage(List<byte> data)
@@ -144,6 +152,8 @@ namespace NetworkSoundBox
             await Task.Yield();
             Console.WriteLine("Device @{0}:{1} has connected!", IPAddress, Port);
             Timer loginTimeout = new(new TimerCallback(LoginTimeoutCallback), this, 10000, Timeout.Infinite);
+            heartbeat = new(1, new(o => CTS.Cancel()));
+            Timer heartbeatTimeout = new(new TimerCallback(HeartbeatTimeoutCallback), this, 75000, 65000);
             int receiveCount = 0;
             while (true)
             {
@@ -266,6 +276,13 @@ namespace NetworkSoundBox
                                 token.Status = MessageStatus.Replied;
                             }
                             break;
+                        case CMD.HEARTBEAT:
+                            if (heartbeat != null)
+                            {
+                                heartbeat.Reset();
+                            }
+                            _outboxQueue.Add(new MessageOutbound(CMD.HEARTBEAT));
+                            break;
                         default:
                             break;
                     }
@@ -306,6 +323,10 @@ namespace NetworkSoundBox
                                 case CMD.FILE_TRANS_REQ:
                                 case CMD.FILE_TRANS_PROC:
                                 case CMD.FILE_TRANS_RPT:
+                                    Socket.Send(message.MessageBuffer, message.BufferSize, 0);
+                                    message.Token.Status = MessageStatus.Sent;
+                                    break;
+                                case CMD.HEARTBEAT:
                                     Socket.Send(message.MessageBuffer, message.BufferSize, 0);
                                     message.Token.Status = MessageStatus.Sent;
                                     break;
@@ -591,7 +612,7 @@ namespace NetworkSoundBox
     {
         public readonly List<MessageToken> MessageTokenList;
         public byte[] Data { get; set; }
-        private Semaphore _semaphore { get; }
+        private readonly Semaphore _semaphore;
         public CMD ExpectCommand { get; }
         public CMD ExceptionCommand { get; }
         private MessageStatus _status;
@@ -707,7 +728,7 @@ namespace NetworkSoundBox
 
         public bool Set()
         {
-            if (++Count >= _maxRetryTimes)
+            if (++Count > _maxRetryTimes)
             {
                 _overflowCallBack(_callbackArgs);
                 return false;
