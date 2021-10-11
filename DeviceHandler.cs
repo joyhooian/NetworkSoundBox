@@ -276,6 +276,7 @@ namespace NetworkSoundBox
                             }
                             break;
                         case CMD.HEARTBEAT:
+                            Console.WriteLine("收到心跳信号");
                             if (heartbeat != null)
                             {
                                 heartbeat.Reset();
