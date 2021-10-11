@@ -242,7 +242,6 @@ namespace NetworkSoundBox
                                 {
                                     device.CTS.Cancel();
                                     DeviceSvrService.MyDeviceHandles.Remove(device);
-                                    device = null;
                                     //CTS.Cancel();
                                     Console.WriteLine("Device with SN \"{0}\" has existed, renew device", SN);
                                 }
@@ -329,6 +328,7 @@ namespace NetworkSoundBox
                                 case CMD.HEARTBEAT:
                                     Socket.Send(message.MessageBuffer, message.BufferSize, 0);
                                     message.Token.Status = MessageStatus.Sent;
+                                    Console.WriteLine("已发送心跳回复");
                                     break;
                                 default:
                                     throw new ArgumentException();
