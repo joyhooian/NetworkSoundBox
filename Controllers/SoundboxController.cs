@@ -14,12 +14,12 @@ namespace NetworkSoundBox.Controllers
     [ApiController]
     public class SoundboxController : ControllerBase
     {
-        private readonly ITcpService _tcpService;
+        private readonly IDeviceSvrService _deviceService;
         private readonly MySqlDbContext _dbContext;
         private readonly IHttpClientFactory _httpClientFactory;
-        public SoundboxController(ITcpService tcpService, MySqlDbContext dbContext, IHttpClientFactory httpClientFactory)
+        public SoundboxController(IDeviceSvrService tcpService, MySqlDbContext dbContext, IHttpClientFactory httpClientFactory)
         {
-            _tcpService = tcpService;
+            _deviceService = tcpService;
             _dbContext = dbContext;
             _httpClientFactory = httpClientFactory;
         }
@@ -32,7 +32,7 @@ namespace NetworkSoundBox.Controllers
                 List<Device> list = _dbContext.Device.Where(device => device.userId == id).ToList();
                 list.ForEach(device =>
                 {
-                    if (_tcpService.DevicePool.Find(d => d.SN == device.sn) != null)
+                    if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
                     {
                         device.isOnline = true;
                     }
@@ -50,7 +50,7 @@ namespace NetworkSoundBox.Controllers
                 List<Device> list = _dbContext.Device.ToList();
                 list.ForEach(device =>
                 {
-                    if (_tcpService.DevicePool.Find(d => d.SN == device.sn) != null)
+                    if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
                     {
                         device.isOnline = true;
                     }
@@ -72,10 +72,10 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("PlayAndPause/SN{sn}Action{action}")]
         public string PlayAndPause(string sn, int action)
         {
-            DeviceHandle device = null;
+            DeviceHandler device = null;
             try
             {
-                device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
             }
             catch (Exception) { }
             if (device == null)
@@ -84,11 +84,11 @@ namespace NetworkSoundBox.Controllers
             }
             if (action == 1)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
             }
             else if (action == 0)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
             }
             return "Seccess!";
         }
@@ -96,10 +96,10 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("NextAndPrevious/SN{sn}Action{action}")]
         public string NextAndPrevious(string sn, int action)
         {
-            DeviceHandle device = null;
+            DeviceHandler device = null;
             try
             {
-                device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
             }
             catch (Exception) { }
             if (device == null)
@@ -108,11 +108,11 @@ namespace NetworkSoundBox.Controllers
             }
             if (action == 1)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x03, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x03, 0xEF });
             }
             else if (action == 0)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x04, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x04, 0xEF });
             }
             return "Seccess!";
         }
@@ -120,10 +120,10 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("Volumn/SN{sn}Action{action}")]
         public string Volumn(string sn, int action)
         {
-            DeviceHandle device = null;
+            DeviceHandler device = null;
             try
             {
-                device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
             }
             catch (Exception) { }
             if (device == null)
@@ -132,11 +132,11 @@ namespace NetworkSoundBox.Controllers
             }
             if (action == 1)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x05, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x05, 0xEF });
             }
             else if (action == 0)
             {
-                device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x06, 0xEF });
+                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x06, 0xEF });
             }
             return "Seccess!";
         }
@@ -144,22 +144,22 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("StopPlay/SN{sn}")]
         public string StopPlay(string sn)
         {
-            DeviceHandle device = null;
+            DeviceHandler device = null;
             try
             {
-                device = _tcpService.DevicePool.TakeWhile(device => device.SN == sn).First();
+                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
             }
             catch (Exception) { }
             if (device == null)
             {
                 return "Filed! Device is not connected!";
             }
-            device.Client.Client.Send(new byte[] { 0x7E, 0x02, 0x0E, 0xEF });
+            device.Socket.Send(new byte[] { 0x7E, 0x02, 0x0E, 0xEF });
             return "Seccess!";
         }
 
-        [HttpGet("TTS/SN{sn}FileIndex{fileIndex}Text{text}")]
-        public FileResult TTS(string sn, int fileIndex, string text)
+        [HttpGet("TTS/SN{sn}Text{text}")]
+        public FileResult TTS(string sn, string text)
         {
             Console.WriteLine("New TTS Task is required to device[{0}] with {1} words", sn, text.Length);
             byte[] receiveBuffer = new byte[1024 * 1024 * 10];
@@ -175,10 +175,10 @@ namespace NetworkSoundBox.Controllers
                 contentLength = responseStream.Read(receiveBuffer);
                 ArraySegment<byte> content = new ArraySegment<byte>(receiveBuffer, 0, contentLength);
 
-                DeviceHandle device = null;
+                DeviceHandler device = null;
                 try
                 {
-                    device = _tcpService.DevicePool.First(device => device.SN == sn);
+                    device = _deviceService.DevicePool.First(device => device.SN == sn);
                 }
                 catch (Exception ex) 
                 {
@@ -189,14 +189,41 @@ namespace NetworkSoundBox.Controllers
                     return null;
                     //return "Filed! Device is not connected!";
                 }
-                Package package = new Package(fileIndex, content);
-                Console.WriteLine("Pushed into Queue");
-                device.streamPackageQueue.Enqueue(package);
-                device.QueueSem.Release();
+                device.FileQueue.Add(new(content.ToList()));
                 return new FileContentResult(content.ToArray(), "audio/mp3");
             }
             return null;
             //return "Success!";
+        }
+
+        [HttpPut("TransFile/SN{sn}")]
+        public void TransFile(string sn, List<IFormFile> files)
+        {
+            Console.WriteLine("Upload {0} files", files.Count);
+
+            DeviceHandler device = null;
+            try
+            {
+                device = _deviceService.DevicePool.First(device => device.SN == sn);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            if (device == null)
+            {
+                return;
+            }
+
+            int index = 0;
+            files.ForEach(file =>
+            {
+                index++;
+                Console.WriteLine("File{0} has {1} Kbyte", index, file.Length / 1024);
+                byte[] content = new byte[1024 * 1024 * 10];
+                int contentLength = file.OpenReadStream().Read(content);
+                device.FileQueue.Add(new(new ArraySegment<byte>(content, 0, contentLength).ToList()));
+            });
         }
     }
 }

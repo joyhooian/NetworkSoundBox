@@ -15,21 +15,6 @@ namespace NetworkSoundBox
         public static void Main(string[] args)
         {
             var host = CreateHostBuilder(args).Build();
-
-            using (var serviceScope = host.Services.CreateScope())
-            {
-                var services = serviceScope.ServiceProvider;
-
-                try
-                {
-                    var tcpService = services.GetRequiredService<ITcpService>();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-                }
-            }
-
             host.Run();
         }
 

@@ -28,15 +28,15 @@ namespace NetworkSoundBox
         {
             _services = services;
             services.AddHttpClient();
-            services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddControllers();
-            //services.AddHostedService<ServerService>();
-            //services.AddHostedService<ProcessMessageService>();
+            services.AddHostedService<ServerService>();
+            services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
             });
-            services.AddScoped<ITcpService, TcpService>();
+            //services.AddScoped<ITcpService, TcpService>();
+            services.AddScoped<IDeviceSvrService, DeviceSvrService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
