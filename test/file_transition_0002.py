@@ -1,11 +1,12 @@
 from socket import *
 import time, requests
+import threading
 
 def Main():
 
     client = socket(AF_INET, SOCK_STREAM)
 
-    client.connect(("127.0.0.1", 10809))
+    client.connect(("127.0.0.1", 10808))
 
     client.send(bytearray([0x7e, 0x01, 0x00, 0x04, 0x30, 0x30, 0x30, 0x32, 0xef]), 0)
 
@@ -19,9 +20,28 @@ def Main():
 
     if res[0] == 0x01: print("Logged in")
 
+    time.sleep(1)
+
+    poll = []
+    poll.append(threading.Thread(target=Heartbeat, args=(client,)))
+    poll.append(threading.Thread(target=MainThread, args=(client,)))
+    for thread in poll:
+        thread.start()
+
+def Heartbeat(client: socket):
+    while True:
+        # print("发送心跳信号")
+        # client.send(bytearray([0x7e, 0x02, 0x00, 0x02, 0x00, 0x00, 0xef]))
+        # recvData = client.recv(300)
+        # res = ParseMessage(recvData)
+        # if res == -1 : return -1
+        # if res[0] == 0x02:
+        #     print("收到心跳回复")
+        time.sleep(20)
+
+def MainThread(client: socket):
     while True:
 
-        # time.sleep(1)
         # url = "http://127.0.0.1:5000/Soundbox/TTS/SN0002Text%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD"
         # requests.get(url)
 
@@ -48,13 +68,8 @@ def Main():
         elif res[0] == 0xA3 and len(res[1]) == 2 and res[1][0] == 0x00 and res[1][1] == 0x00:
             client.send(recvData)
 
-            # recvData = client.recv(300)
-            # res = ParseMessage(recvData)
-            # if res == -1: return -1
-            # if res[0] == 0xA3 and len(res[1]) == 2 and res[1][0] == 0x00 and res[1][1] == 0x00:
-            #     client.send(recvData)
 
-def DownloadFile(client:socket, pkgCount):
+def DownloadFile(client: socket, pkgCount):
     pkgIndex = 0
     recvFile = bytearray()
     while pkgIndex < pkgCount:

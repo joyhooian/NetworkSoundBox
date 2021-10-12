@@ -277,14 +277,14 @@ namespace NetworkSoundBox
                             break;
                         case CMD.HEARTBEAT:
                             Console.WriteLine("收到心跳信号");
-                            if (heartbeat != null)
-                            {
-                                heartbeat.Reset();
-                            }
                             _outboxQueue.Add(new MessageOutbound(CMD.HEARTBEAT));
                             break;
                         default:
                             break;
+                    }
+                    if (heartbeat != null)
+                    {
+                        heartbeat.Reset();
                     }
                 }
                 catch (OperationCanceledException)
