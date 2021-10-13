@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkSoundBox.Models;
 
 namespace NetworkSoundBox
 {
@@ -68,7 +69,7 @@ namespace NetworkSoundBox
         public DeviceHandler(Socket socket)
         {
             Socket = socket;
-            Socket.ReceiveTimeout = 1;
+            Socket.ReceiveTimeout = 5;
             Socket.SendTimeout = 5000;
 
             SN = "";
@@ -106,7 +107,7 @@ namespace NetworkSoundBox
         }
         private void ParseMessage(List<byte> data)
         {
-            Console.WriteLine("[{0}] Received {1} bytes message", SN == "" ? $"@{IPAddress}:{Port}" : $"{SN}", data.Count);
+            //Console.WriteLine("[{0}] Received {1} bytes message", SN == "" ? $"@{IPAddress}:{Port}" : $"{SN}", data.Count);
             while (true)
             {
                 int startOffset = data.IndexOf(0x7E);
@@ -120,6 +121,7 @@ namespace NetworkSoundBox
                 {
                     try
                     {
+                        Console.WriteLine("[{0}] Recv [{1}] Bytes CMD[0x{2:X2}]", SN == "" ? $"@{IPAddress}:{Port}" : $"{SN}", data.Count, data[startOffset + 1]);
                         _inboxQueue.Add(new MessageInbound(data.Skip(startOffset).Take(endOffset - startOffset + 1).ToList()));
                     }
                     catch (OperationCanceledException)
@@ -160,7 +162,9 @@ namespace NetworkSoundBox
                 if (CTS.IsCancellationRequested)
                 {
                     Console.WriteLine("Device {2}@{0}:{1} has disconnected!", IPAddress, Port, SN == "" ? "" : $"[{SN}]");
+                    Socket.Shutdown(SocketShutdown.Both);
                     Socket.Close();
+                    Socket.Dispose();
                     if (DeviceSvrService.MyDeviceHandles.Contains(this))
                     {
                         DeviceSvrService.MyDeviceHandles.Remove(this);
@@ -227,7 +231,8 @@ namespace NetworkSoundBox
                                 SN = System.Text.Encoding.ASCII.GetString(message.Data.ToArray());
                                 using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                                 {
-                                    if (null == dbContext.Device.FirstOrDefault(device => device.sn == SN))
+                                    var deviceEntity = dbContext.Device.FirstOrDefault(d => d.sn == SN);
+                                    if (deviceEntity == null)
                                     {
                                         CTS.Cancel();
                                         Console.WriteLine("Invalid SN \"{0}\", socket @{1}:{2} will be closed!",
@@ -235,6 +240,12 @@ namespace NetworkSoundBox
                                             IPAddress,
                                             Port);
                                         break;
+                                    }
+                                    else
+                                    {
+                                        deviceEntity.lastOnline = DateTime.Now;
+                                        dbContext.Update(deviceEntity);
+                                        dbContext.SaveChanges();
                                     }
                                 }
                                 DeviceHandler device = DeviceSvrService.MyDeviceHandles.FirstOrDefault(device => device.SN == SN);
@@ -329,11 +340,11 @@ namespace NetworkSoundBox
                                 case CMD.HEARTBEAT:
                                     Socket.Send(message.MessageBuffer, message.BufferSize, 0);
                                     message.Token.Status = MessageStatus.Sent;
-                                    Console.WriteLine("已发送心跳回复");
                                     break;
                                 default:
                                     throw new ArgumentException();
                             }
+                            Console.WriteLine("[{0}] Trns [{1}] Bytes CMD[0x{2:X2}]", SN, message.BufferSize, (int)message.Command);
                             break;
                         }
                         catch (SocketException ex)
