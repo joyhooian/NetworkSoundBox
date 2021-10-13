@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using NetworkSoundBox.Hubs;
 
 namespace NetworkSoundBox
 {
@@ -31,12 +32,19 @@ namespace NetworkSoundBox
             services.AddControllers();
             services.AddHostedService<ServerService>();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
+            services.AddScoped<IDeviceSvrService, DeviceSvrService>();
+            services.AddCors(options =>
+            {
+                options.AddPolicy("SignalRCors", policy => policy.SetIsOriginAllowed(_ => true)
+                                                                 .AllowAnyHeader()
+                                                                 .AllowCredentials()
+                                                                 .WithMethods("GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"));
+            });
+            services.AddSignalR();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
             });
-            //services.AddScoped<ITcpService, TcpService>();
-            services.AddScoped<IDeviceSvrService, DeviceSvrService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -53,9 +61,12 @@ namespace NetworkSoundBox
 
             app.UseAuthorization();
 
+            app.UseCors("SignalRCors");
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHub<NotificationHub>("/NotificationHub").RequireCors("SignalRCors");
             });
         }
     }

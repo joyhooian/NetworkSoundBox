@@ -16,5 +16,7 @@ namespace NetworkSoundBox.Models
         public string Name { get; set; }
         [Column("tel_num")]
         public string TelNum { get; set; }
+        [NotMapped]
+        public string ConnectionId { get; set; }
     }
 }

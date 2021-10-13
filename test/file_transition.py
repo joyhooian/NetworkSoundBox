@@ -1,11 +1,13 @@
 from socket import *
 import time, requests
+import threading
+from multiprocessing import Lock
 
 def Main():
 
     client = socket(AF_INET, SOCK_STREAM)
 
-    client.connect(("127.0.0.1", 10809))
+    client.connect(("127.0.0.1", 10808))
 
     client.send(bytearray([0x7e, 0x01, 0x00, 0x04, 0x30, 0x30, 0x30, 0x31, 0xef]), 0)
 
@@ -19,23 +21,44 @@ def Main():
 
     if res[0] == 0x01: print("Logged in")
 
+    time.sleep(1)
+
+    mutex = Lock()
+    poll = []
+    poll.append(threading.Thread(target=Heartbeat, args=(client,mutex)))
+    poll.append(threading.Thread(target=MainThread, args=(client,mutex)))
+    for thread in poll:
+        thread.start()
+
+def Heartbeat(client: socket, mutex):
+    while True:
+        mutex.acquire()
+        print("发送心跳信号")
+        client.send(bytearray([0x7e, 0x02, 0x00, 0x02, 0x00, 0x00, 0xef]))
+        recvData = client.recv(300)
+        res = ParseMessage(recvData)
+        if res == -1 : return -1
+        if res[0] == 0x02:
+            print("收到心跳回复")
+        mutex.release()
+        time.sleep(20)
+
+def MainThread(client: socket, mutex):
+    isDownloading = False
     while True:
 
-        time.sleep(1)
-
-        url = "http://127.0.0.1:5000/Soundbox/TTS/SN0001Text%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD"
-
-        requests.get(url)
-
+        # url = "http://127.0.0.1:5000/Soundbox/TTS/SN0002Text%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD"
+        # requests.get(url)
+        if not isDownloading:
+            mutex.acquire()
         recvData = client.recv(300)
-        PrintData(recvData)
-
         res = ParseMessage(recvData)
         if res == -1: continue
 
         if res[0] == 0xA0 and len(res[1]) == 3:
+            isDownloading = True
             fileIndex = res[1][0]
-            pkgCount = res[1][1] | res[1][2]
+            pkgCount = (res[1][1] << 8)  | res[1][2]
             print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, pkgCount, pkgCount * 255.0 / 1024.0))
             startTime = time.time()
             client.send(bytearray([0x7e, 0xA0, 0x00, 0x02, 0x00, 0x00, 0xef]))
@@ -49,14 +72,12 @@ def Main():
             if res == -1: return -1
             if res[0] == 0xA3:
                 client.send(recvData)
+        elif res[0] == 0xA3 and len(res[1]) == 2 and res[1][0] == 0x00 and res[1][1] == 0x00:
+            client.send(recvData)
+            isDownloading = False
+            mutex.release()
 
-            recvData = client.recv(300)
-            res = ParseMessage(recvData)
-            if res == -1: return -1
-            if res[0] == 0xA3 and len(res[1]) == 2 and res[1][0] == 0x00 and res[1][1] == 0x00:
-                client.send(recvData)
-
-def DownloadFile(client:socket, pkgCount):
+def DownloadFile(client: socket, pkgCount):
     pkgIndex = 0
     recvFile = bytearray()
     while pkgIndex < pkgCount:
@@ -66,10 +87,13 @@ def DownloadFile(client:socket, pkgCount):
         # PrintData(recvData)
 
         res = RecvFile(recvData, pkgIndex)
-        if res == -1: return -1
+        if res == -1: 
+            return -1
         for byte in res:
             recvFile.append(byte)
-        client.send(bytearray([0x7E, 0xA0, 0x00, 0x02, pkgIndex & 0xFF00, pkgIndex & 0x00FF, 0xEF]))
+        pkgidxH = (pkgIndex >> 8) & 0xFF
+        pkgidxL = pkgIndex & 0xFF
+        client.send(bytearray([0x7E, 0xA0, 0x00, 0x02, pkgidxH, pkgidxL, 0xEF]))
     print("")
     return recvFile
 
@@ -103,7 +127,7 @@ def RecvFile(recvData: bytearray, pkgIndex: int):
 
     if recvData[startOffset + 4 + 256] != 0xEF: return -1 
 
-    if pkgIndex != recvData[startOffset + 2] | recvData[startOffset + 3]: return -1
+    if pkgIndex != recvData[startOffset + 2] << 8 | recvData[startOffset + 3]: return -1
 
     pkgData = bytearray()
     for i in range(255):

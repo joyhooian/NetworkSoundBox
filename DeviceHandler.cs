@@ -9,6 +9,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NetworkSoundBox.Models;
+using NetworkSoundBox.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace NetworkSoundBox
 {
@@ -43,6 +45,8 @@ namespace NetworkSoundBox
     }
     public class DeviceHandler
     {
+        private readonly IHubContext<NotificationHub> _notificationHub;
+
         public const int MAX_RETRY_TIMES = 3;
         public const int DEFAULT_TIMEOUT_LONG = 60 * 1000;
 
@@ -66,10 +70,12 @@ namespace NetworkSoundBox
         private int _fileCount = 0;
         private RetryManager heartbeat;
 
-        public DeviceHandler(Socket socket)
+        public DeviceHandler(Socket socket, IHubContext<NotificationHub> notificationHub)
         {
+            _notificationHub = notificationHub;
+
             Socket = socket;
-            Socket.ReceiveTimeout = 5;
+            Socket.ReceiveTimeout = 1;
             Socket.SendTimeout = 5000;
 
             SN = "";
@@ -165,12 +171,24 @@ namespace NetworkSoundBox
                     Socket.Shutdown(SocketShutdown.Both);
                     Socket.Close();
                     Socket.Dispose();
+                    var logoutTime = DateTime.Now;
                     if (DeviceSvrService.MyDeviceHandles.Contains(this))
                     {
                         DeviceSvrService.MyDeviceHandles.Remove(this);
                         _handleFilesTask.Wait();
                         _handleOutboxTask.Wait();
                         _handleInboxTask.Wait();
+                        using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
+                        {
+                            var deviceEntity = dbContext.Device.FirstOrDefault(d => d.sn == SN);
+                            if (deviceEntity  != null)
+                            {
+                                deviceEntity.lastOnline = logoutTime;
+                                dbContext.Update(deviceEntity);
+                                dbContext.SaveChanges();
+                            }
+                            await _notificationHub.Clients.All.SendAsync("LogoutNotify", SN + "|" + logoutTime.ToString());
+                        }
                     }
                     return;
                 }
@@ -243,9 +261,7 @@ namespace NetworkSoundBox
                                     }
                                     else
                                     {
-                                        deviceEntity.lastOnline = DateTime.Now;
-                                        dbContext.Update(deviceEntity);
-                                        dbContext.SaveChanges();
+                                        await _notificationHub.Clients.All.SendAsync("LoginNotify", SN);
                                     }
                                 }
                                 DeviceHandler device = DeviceSvrService.MyDeviceHandles.FirstOrDefault(device => device.SN == SN);
@@ -253,7 +269,6 @@ namespace NetworkSoundBox
                                 {
                                     device.CTS.Cancel();
                                     DeviceSvrService.MyDeviceHandles.Remove(device);
-                                    //CTS.Cancel();
                                     Console.WriteLine("Device with SN \"{0}\" has existed, renew device", SN);
                                 }
                                 DeviceSvrService.MyDeviceHandles.Add(this);
@@ -531,6 +546,13 @@ namespace NetworkSoundBox
     }
     public class ServerService : BackgroundService
     {
+        private readonly IHubContext<NotificationHub> _hubContext;
+
+        public ServerService(IHubContext<NotificationHub> hubContext)
+        {
+            _hubContext = hubContext;
+        }
+
         protected async override Task ExecuteAsync(CancellationToken cancellationToken)
         {
             await Task.Yield();
@@ -540,7 +562,7 @@ namespace NetworkSoundBox
             while (true)
             {
                 Console.WriteLine("[Test] Waiting for a connection...");
-                new DeviceHandler(server.AcceptSocket());
+                new DeviceHandler(server.AcceptSocket(), _hubContext);
             }
         }
     }

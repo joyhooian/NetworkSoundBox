@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NetworkSoundBox.Models;
 using Newtonsoft.Json;
 using System.Net.Http;
+using NetworkSoundBox.Hubs;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -45,18 +46,15 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
-            using (_dbContext)
+            List<Device> list = _dbContext.Device.ToList();
+            list.ForEach(device =>
             {
-                List<Device> list = _dbContext.Device.ToList();
-                list.ForEach(device =>
+                if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
                 {
-                    if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
-                    {
-                        device.isOnline = true;
-                    }
-                });
-                return JsonConvert.SerializeObject(list);
-            }
+                    device.isOnline = true;
+                }
+            });
+            return JsonConvert.SerializeObject(list);
         }
 
         [HttpGet("User/{id}")]

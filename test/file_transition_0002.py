@@ -1,6 +1,7 @@
 from socket import *
 import time, requests
 import threading
+from multiprocessing import Lock
 
 def Main():
 
@@ -22,34 +23,40 @@ def Main():
 
     time.sleep(1)
 
+    mutex = Lock()
     poll = []
-    poll.append(threading.Thread(target=Heartbeat, args=(client,)))
-    poll.append(threading.Thread(target=MainThread, args=(client,)))
+    poll.append(threading.Thread(target=Heartbeat, args=(client,mutex)))
+    poll.append(threading.Thread(target=MainThread, args=(client,mutex)))
     for thread in poll:
         thread.start()
 
-def Heartbeat(client: socket):
+def Heartbeat(client: socket, mutex):
     while True:
-        # print("发送心跳信号")
-        # client.send(bytearray([0x7e, 0x02, 0x00, 0x02, 0x00, 0x00, 0xef]))
-        # recvData = client.recv(300)
-        # res = ParseMessage(recvData)
-        # if res == -1 : return -1
-        # if res[0] == 0x02:
-        #     print("收到心跳回复")
+        mutex.acquire()
+        print("发送心跳信号")
+        client.send(bytearray([0x7e, 0x02, 0x00, 0x02, 0x00, 0x00, 0xef]))
+        recvData = client.recv(300)
+        res = ParseMessage(recvData)
+        if res == -1 : return -1
+        if res[0] == 0x02:
+            print("收到心跳回复")
+        mutex.release()
         time.sleep(20)
 
-def MainThread(client: socket):
+def MainThread(client: socket, mutex):
+    isDownloading = False
     while True:
 
         # url = "http://127.0.0.1:5000/Soundbox/TTS/SN0002Text%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD"
         # requests.get(url)
-
+        if not isDownloading:
+            mutex.acquire()
         recvData = client.recv(300)
         res = ParseMessage(recvData)
         if res == -1: continue
 
         if res[0] == 0xA0 and len(res[1]) == 3:
+            isDownloading = True
             fileIndex = res[1][0]
             pkgCount = (res[1][1] << 8)  | res[1][2]
             print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, pkgCount, pkgCount * 255.0 / 1024.0))
@@ -67,7 +74,8 @@ def MainThread(client: socket):
                 client.send(recvData)
         elif res[0] == 0xA3 and len(res[1]) == 2 and res[1][0] == 0x00 and res[1][1] == 0x00:
             client.send(recvData)
-
+            isDownloading = False
+            mutex.release()
 
 def DownloadFile(client: socket, pkgCount):
     pkgIndex = 0
