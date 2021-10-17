@@ -16,6 +16,12 @@ namespace NetworkSoundBox.Models
         public string Name { get; set; }
         [Column("tel_num")]
         public string TelNum { get; set; }
+        [Column("email")]
+        public string Email { get; set; }
+        [Column("openid")]
+        public string OpenId { get; set; }
+        [Column("role")]
+        public string Role { get; set; }
         [NotMapped]
         public string ConnectionId { get; set; }
     }

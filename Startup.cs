@@ -3,20 +3,26 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using NetworkSoundBox.Hubs;
+using NetworkSoundBox.Authorization.Policy;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using NetworkSoundBox.Authorization;
+using NetworkSoundBox.WxAuthorization.AccessToken;
+using NetworkSoundBox.WxAuthorization.QRCode;
+using NetworkSoundBox.Authorization.WxAuthorization.Login;
+using NetworkSoundBox.Services.TextToSpeech;
 
 namespace NetworkSoundBox
 {
     public class Startup
     {
-        public static IServiceCollection _services = null;
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -27,12 +33,58 @@ namespace NetworkSoundBox
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            _services = services;
+
+            string issuer = Configuration["Jwt:Issuer"];
+            string audience = Configuration["Jwt:Audience"];
+            string expire = Configuration["Jwt:ExpireMinutes"];
+            TimeSpan expiration = TimeSpan.FromMinutes(Convert.ToDouble(expire));
+            SecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:SecurityKey"]));
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("Permission",
+                    policy => policy.Requirements.Add(new PolicyRequirement()));
+            }).AddAuthentication(s =>
+            {
+                s.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                s.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+                s.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(s =>
+            {
+                s.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
+                    IssuerSigningKey = key,
+                    ClockSkew = expiration,
+                    ValidateLifetime = true
+                };
+                s.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                        {
+                            context.Response.Headers.Add("Token-Expired", "true");
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+            services.AddTransient<IJwtAppService, JwtAppService>();
+            services.AddSingleton<IAuthorizationHandler, PolicyHandler>();
+            services.AddSingleton<IWxAccessService, WxAccessService>();
+            services.AddSingleton<IWxLoginQRService, WxLoginQRService>();
+            services.AddSingleton<IDeviceSvrService, DeviceSvrService>();
+            services.AddSingleton<IWxLoginService, WxLoginService>();
+            services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
+
+            services.AddSignalR();
             services.AddHttpClient();
             services.AddControllers();
+            services.AddHttpContextAccessor();
             services.AddHostedService<ServerService>();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
-            services.AddScoped<IDeviceSvrService, DeviceSvrService>();
             services.AddCors(options =>
             {
                 options.AddPolicy("SignalRCors", policy => policy.SetIsOriginAllowed(_ => true)
@@ -40,7 +92,6 @@ namespace NetworkSoundBox
                                                                  .AllowCredentials()
                                                                  .WithMethods("GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"));
             });
-            services.AddSignalR();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
@@ -65,7 +116,7 @@ namespace NetworkSoundBox
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllers();
+                endpoints.MapControllers().RequireCors("SignalRCors");
                 endpoints.MapHub<NotificationHub>("/NotificationHub").RequireCors("SignalRCors");
             });
         }

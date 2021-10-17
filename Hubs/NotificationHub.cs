@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using NetworkSoundBox.Models;
 
@@ -9,25 +10,41 @@ namespace NetworkSoundBox.Hubs
 {
     public class NotificationHub : Hub
     {
-        private static readonly List<string> OnlineUser = new List<string>();
+        public static HashSet<Client> ClientHashSet { get; } = new HashSet<Client>();
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        public NotificationHub(IHttpContextAccessor httpContextAccessor)
+        {
+            _httpContextAccessor = httpContextAccessor;
+        }
 
         public override Task OnConnectedAsync()
         {
-            var user = Context.ConnectionId;
-            OnlineUser.Add(user);
-
-            Clients.Client(user).SendAsync("ConnectResponse", "Hello");
+            string loginKey = _httpContextAccessor.HttpContext.Request.Query["access_token"];
+            var client = Context.ConnectionId;
+            if (loginKey == string.Empty)
+            {
+                return null;
+            }
+            RegisterClient(loginKey, client);
+            Clients.Client(client).SendAsync("ConnectResponse", "Hello");
 
             return base.OnConnectedAsync();
         }
 
-        public async Task NotiDeviceStatus()
+        public void RegisterClient(string loginKey, string client)
         {
-            var user = OnlineUser.FirstOrDefault();
-            if (user != null)
+            ClientHashSet.Add(new Client
             {
-                await Clients.Client(user).SendAsync("Notification");
-            }
+                ClientId = client,
+                LoginKey = loginKey
+            });
         }
+    }
+
+    public class Client
+    {
+        public string ClientId { get; set; }
+        public string LoginKey { get; set; }
     }
 }

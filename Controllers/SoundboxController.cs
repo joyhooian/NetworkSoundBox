@@ -7,22 +7,74 @@ using System.Threading.Tasks;
 using NetworkSoundBox.Models;
 using Newtonsoft.Json;
 using System.Net.Http;
+using NetworkSoundBox.WxAuthorization.QRCode.DTO;
+using NetworkSoundBox.WxAuthorization.QRCode;
+using Microsoft.AspNetCore.Authorization;
+using NetworkSoundBox.Authorization.WxAuthorization.Login;
+using NetworkSoundBox.Authorization;
+using NetworkSoundBox.Authorization.DTO;
+using Microsoft.AspNetCore.SignalR;
 using NetworkSoundBox.Hubs;
 
 namespace NetworkSoundBox.Controllers
 {
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class SoundboxController : ControllerBase
     {
         private readonly IDeviceSvrService _deviceService;
         private readonly MySqlDbContext _dbContext;
         private readonly IHttpClientFactory _httpClientFactory;
-        public SoundboxController(IDeviceSvrService tcpService, MySqlDbContext dbContext, IHttpClientFactory httpClientFactory)
+        private readonly IWxLoginQRService _wxLoginQRService;
+        private readonly IWxLoginService _wxLoginService;
+        private readonly IJwtAppService _jwtAppService;
+        private readonly IHubContext<NotificationHub> _notificationHub;
+
+        public SoundboxController(
+            IDeviceSvrService tcpService, 
+            MySqlDbContext dbContext, 
+            IHttpClientFactory httpClientFactory, 
+            IWxLoginQRService wxLoginQRService,
+            IWxLoginService wxLoginService,
+            IJwtAppService jwtAppService,
+            IHubContext<NotificationHub> notificationHub)
         {
             _deviceService = tcpService;
             _dbContext = dbContext;
             _httpClientFactory = httpClientFactory;
+            _wxLoginQRService = wxLoginQRService;
+            _wxLoginService = wxLoginService;
+            _jwtAppService = jwtAppService;
+            _notificationHub = notificationHub;
+        }
+
+        [HttpGet("wxlogin")]
+        public async Task<string> WxLoginAsync()
+        {
+            WxLoginQRDto dto = await _wxLoginQRService.RequestLoginQRAsync();
+            return JsonConvert.SerializeObject(dto);
+        }
+
+        [HttpGet("wxapi/code2session/{code}/loginkey/{loginKey}")]
+        public async Task<bool> Code2Session(string code, string loginKey)
+        {
+            string openId = await _wxLoginService.Code2Session(code);
+            var user = _dbContext.User.FirstOrDefault(u => u.OpenId == openId);
+            var jwt = _jwtAppService.Create(new UserDto
+            {
+                Id = user.UserId,
+                UserName = user.Name,
+                Email = user.Email,
+                Phone = user.TelNum,
+                Role = user.Role
+            });
+            var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
+            if (client != null)
+            {
+                await _notificationHub.Clients.Client(client.ClientId).SendAsync(jwt.Token);
+                return true;
+            }
+            return false;
         }
 
         [HttpGet("Devices/{id}")]
@@ -43,6 +95,8 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
+        //[Authorize(Roles = "Admin")]
+        [Authorize(Policy = "Permission")]
         [HttpGet("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
