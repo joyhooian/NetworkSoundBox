@@ -55,6 +55,27 @@ namespace NetworkSoundBox.Controllers
             return JsonConvert.SerializeObject(dto);
         }
 
+        [HttpGet("logintest{loginKey}")]
+        public async Task<bool> LoginTest(string loginKey)
+        {
+            var user = _dbContext.User.FirstOrDefault();
+            var jwt = _jwtAppService.Create(new UserDto
+            {
+                Id = user.UserId,
+                UserName = user.Name,
+                Email = user.Email,
+                Phone = user.TelNum,
+                Role = user.Role
+            });
+            var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
+            if (client != null)
+            {
+                await _notificationHub.Clients.Client(client.ClientId).SendAsync("LoginToken", jwt.Token);
+                return true;
+            }
+            return false;
+        }
+
         [HttpGet("wxapi/code2session/{code}/loginkey/{loginKey}")]
         public async Task<bool> Code2Session(string code, string loginKey)
         {
@@ -96,7 +117,7 @@ namespace NetworkSoundBox.Controllers
         }
 
         //[Authorize(Roles = "Admin")]
-        [Authorize(Policy = "Permission")]
+        [Authorize]
         [HttpGet("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {

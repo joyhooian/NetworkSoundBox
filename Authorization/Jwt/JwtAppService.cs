@@ -26,6 +26,16 @@ namespace NetworkSoundBox.Authorization
             _httpContextAccessor = httpContextAccessor;
         }
 
+        public int GetUserId(string token)
+        {
+            var user = _tokens.FirstOrDefault(jwt => jwt.Token == token);
+            if (user != null)
+            {
+                return user.UserId;
+            }
+            return 0;
+        }
+
         /// <summary>
         /// 新增Token
         /// </summary>

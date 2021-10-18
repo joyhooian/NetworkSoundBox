@@ -10,6 +10,7 @@ namespace NetworkSoundBox.Authorization
     {
         JwtAuthorizationDto Create(UserDto userDto);
         JwtAuthorizationDto Refresh(string token, UserDto userDto);
+        int GetUserId(string token);
         bool IsCurrentActiveToken();
         void DeactiveCurrent();
         bool IsActive(string token);

@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using System;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Authorization.Policy;
@@ -18,6 +17,9 @@ using NetworkSoundBox.WxAuthorization.AccessToken;
 using NetworkSoundBox.WxAuthorization.QRCode;
 using NetworkSoundBox.Authorization.WxAuthorization.Login;
 using NetworkSoundBox.Services.TextToSpeech;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace NetworkSoundBox
 {
@@ -95,6 +97,30 @@ namespace NetworkSoundBox
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+                    Name = "Authorization",//Jwt default param name
+                    In = ParameterLocation.Header,//Jwt store address
+                    Type = SecuritySchemeType.ApiKey//Security scheme type
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            },
+                            Scheme = "oauth2",
+                            Name = "Bearer",
+                            In = ParameterLocation.Header,
+                        },
+                        new List<string>()
+                    }
+                });
             });
         }
 
@@ -109,10 +135,12 @@ namespace NetworkSoundBox
             }
 
             app.UseRouting();
+            app.UseCors("SignalRCors");
+
+
+            app.UseAuthentication();
 
             app.UseAuthorization();
-
-            app.UseCors("SignalRCors");
 
             app.UseEndpoints(endpoints =>
             {
