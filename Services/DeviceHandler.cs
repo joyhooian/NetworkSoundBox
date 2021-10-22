@@ -37,6 +37,12 @@ namespace NetworkSoundBox
         Replied,
         Failed
     }
+    public enum FileStatus
+    {
+        Pending,
+        Success,
+        Failed
+    }
     public class DeviceSvrService : IDeviceSvrService
     {
         public static readonly List<DeviceHandler> MyDeviceHandles = new List<DeviceHandler>();
@@ -186,9 +192,9 @@ namespace NetworkSoundBox
                                 deviceEntity.lastOnline = logoutTime;
                                 dbContext.Update(deviceEntity);
                                 dbContext.SaveChanges();
-                            }
-                            await _notificationHub.Clients.All.SendAsync("LogoutNotify", SN + "|" + logoutTime.ToString());
                         }
+                        await _notificationHub.Clients.All.SendAsync("LogoutNotify", SN + "|" + logoutTime.ToString());
+                    }
                     }
                     return;
                 }
@@ -198,7 +204,6 @@ namespace NetworkSoundBox
                     if (receiveCount == 0)
                     {
                         CTS.Cancel();
-                        break;
                     }
                     else
                     {
@@ -220,6 +225,7 @@ namespace NetworkSoundBox
                             }
                             break;
                         case SocketError.ConnectionReset:
+                            Console.WriteLine("Cancel for connection reseted");
                             CTS.Cancel();
                             break;
                         default:
@@ -239,7 +245,6 @@ namespace NetworkSoundBox
                 try
                 {
                     message = _inboxQueue.Take(CTS.Token);
-
                     MessageToken token = GetToken(message.Command);
                     switch (message.Command)
                     {
@@ -441,7 +446,7 @@ namespace NetworkSoundBox
                     {
                         pkgIdx++;
                         var pkg = file.Packages.Dequeue();
-
+                        await _notificationHub.Clients.All.SendAsync("FileProgress", (100.0 * pkgIdx / file.PackageCount).ToString());
                         retry.Reset();
                         while (retry.Set())
                         {
@@ -498,6 +503,7 @@ namespace NetworkSoundBox
                         if (token.CheckReply())
                         {
                             _fileCount++;
+                            file.Success();
                             break;
                         }
                     }
@@ -535,11 +541,38 @@ namespace NetworkSoundBox
                 }
                 catch (OperationCanceledException) 
                 {
+                    if (file != null)
+                    {
+                        file.Fail();
+                    }
+                    while(_fileQueue.Count != 0)
+                    {
+                        _fileQueue.Take().Fail();
+                    }
                     Console.WriteLine("Exit HandleFiles() Task");
+                    return;
+                }
+                catch (TimeoutException)
+                {
+                    if (file != null)
+                    {
+                        file.Fail();
+                    }
+                    continue;
+                }
+                catch (ObjectDisposedException) 
+                { 
+                    if (file != null)
+                    {
+                        file.Fail();
+                    }
+                    if (_fileQueue == null) { return; }
+                    while(_fileQueue.Count != 0)
+                    {
+                        _fileQueue.Take().Fail();
+                    }
                     return; 
                 }
-                catch (TimeoutException) { continue; }
-                catch (ObjectDisposedException) { return; }
                 catch (Exception ex) { Console.WriteLine(ex.Message); }
             }
         }
@@ -720,12 +753,14 @@ namespace NetworkSoundBox
     public class File
     {
         private readonly List<byte> _content;
-
+        public Semaphore Semaphore { get; } = new Semaphore(0, 1);
+        public FileStatus FileStatus { get; set; }
         public Queue<byte[]> Packages { get; }
         public int PackageCount { get; }
 
         public File(List<byte> content)
         {
+            FileStatus = FileStatus.Pending;
             _content = content;
             Packages = new Queue<byte[]>();
             PackageCount = _content.Count / 256 + 1;
@@ -741,6 +776,18 @@ namespace NetworkSoundBox
                 }
                 Packages.Enqueue(package);
             }
+        }
+
+        public void Success()
+        {
+            FileStatus = FileStatus.Success;
+            Semaphore.Release();
+        }
+
+        public void Fail()
+        {
+            FileStatus = FileStatus.Failed;
+            Semaphore.Release();
         }
     }
     public class RetryManager

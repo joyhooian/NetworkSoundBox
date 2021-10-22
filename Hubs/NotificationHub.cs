@@ -21,6 +21,7 @@ namespace NetworkSoundBox.Hubs
         public override Task OnConnectedAsync()
         {
             string loginKey = _httpContextAccessor.HttpContext.Request.Query["access_token"];
+            Console.WriteLine(loginKey);
             var client = Context.ConnectionId;
             if (loginKey == string.Empty)
             {

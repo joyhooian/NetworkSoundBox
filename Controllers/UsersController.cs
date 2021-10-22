@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Authorization;
 using Newtonsoft.Json;
+using NetworkSoundBox;
 
 namespace NetworkSoundBox.Controllers
 {

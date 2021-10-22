@@ -15,6 +15,7 @@ using NetworkSoundBox.Authorization;
 using NetworkSoundBox.Authorization.DTO;
 using Microsoft.AspNetCore.SignalR;
 using NetworkSoundBox.Hubs;
+using NetworkSoundBox.Controllers.DTO;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -31,8 +32,8 @@ namespace NetworkSoundBox.Controllers
         private readonly IHubContext<NotificationHub> _notificationHub;
 
         public SoundboxController(
-            IDeviceSvrService tcpService, 
-            MySqlDbContext dbContext, 
+            IDeviceSvrService tcpService,
+            MySqlDbContext dbContext,
             IHttpClientFactory httpClientFactory, 
             IWxLoginQRService wxLoginQRService,
             IWxLoginService wxLoginService,
@@ -56,7 +57,7 @@ namespace NetworkSoundBox.Controllers
         }
 
         [HttpGet("logintest{loginKey}")]
-        public async Task<bool> LoginTest(string loginKey)
+        public bool LoginTest(string loginKey)
         {
             var user = _dbContext.User.FirstOrDefault();
             var jwt = _jwtAppService.Create(new UserDto
@@ -70,7 +71,8 @@ namespace NetworkSoundBox.Controllers
             var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
             if (client != null)
             {
-                await _notificationHub.Clients.Client(client.ClientId).SendAsync("LoginToken", jwt.Token);
+                client.LoginKey = jwt.Token;
+                _notificationHub.Clients.Client(client.ClientId).SendAsync("LoginToken", jwt.Token);
                 return true;
             }
             return false;
@@ -125,7 +127,7 @@ namespace NetworkSoundBox.Controllers
             list.ForEach(device =>
             {
                 if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
-                {
+                    {
                     device.isOnline = true;
                 }
             });
@@ -269,8 +271,8 @@ namespace NetworkSoundBox.Controllers
             //return "Success!";
         }
 
-        [HttpPut("TransFile/SN{sn}")]
-        public void TransFile(string sn, List<IFormFile> files)
+        [HttpPost("TransFileList/SN{sn}")]
+        public bool TransFile(string sn, List<IFormFile> files)
         {
             Console.WriteLine("Upload {0} files", files.Count);
 
@@ -285,7 +287,7 @@ namespace NetworkSoundBox.Controllers
             }
             if (device == null)
             {
-                return;
+                return false;
             }
 
             int index = 0;
@@ -297,6 +299,47 @@ namespace NetworkSoundBox.Controllers
                 int contentLength = file.OpenReadStream().Read(content);
                 device.FileQueue.Add(new(new ArraySegment<byte>(content, 0, contentLength).ToList()));
             });
+            return true;
+        }
+
+        [HttpPost("TransFile/SN{sn}")]
+        public string TransFile(string sn, IFormFile file)
+        {
+            if (file == null)
+            {
+                return JsonConvert.SerializeObject(new FileResultDto("fail", "Empty of file content."));
+            }
+
+            Console.WriteLine("Upload 1 file");
+
+            DeviceHandler device = null;
+            try
+            {
+                device = _deviceService.DevicePool.First(device => device.SN == sn);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            if (device == null)
+            {
+                return JsonConvert.SerializeObject(new FileResultDto("fail", "Device is disconnected."));
+            }
+
+            Console.WriteLine("File has {0} Kbyte", file.Length / 1024);
+            byte[] content = new byte[1024 * 1024 * 10];
+            int contentLength = file.OpenReadStream().Read(content);
+            var fileUploaded = new File(new ArraySegment<byte>(content, 0, contentLength).ToList());
+            device.FileQueue.Add(fileUploaded);
+            fileUploaded.Semaphore.WaitOne();
+            if (fileUploaded.FileStatus == FileStatus.Success)
+            {
+                return JsonConvert.SerializeObject(new FileResultDto("success", ""));
+            }
+            else
+            {
+                return JsonConvert.SerializeObject(new FileResultDto("fail", "Transmit file failed."));
+            }
         }
     }
 }
