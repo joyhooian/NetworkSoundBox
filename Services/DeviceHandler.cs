@@ -323,6 +323,15 @@ namespace NetworkSoundBox
                                 using var hmacmd5_3 = new HMACMD5(Encoding.UTF8.GetBytes("abcdefg"));
                                 var authorization = hmacmd5_3.ComputeHash(Encoding.UTF8.GetBytes(SN));
                                 using var hmacmd5_4 = new HMACMD5(authorization);
+                                var timeStampSend = DateTimeOffset.Now.ToUnixTimeSeconds();
+                                if (timeStampSend % 10 < 5)
+                                {
+                                    timeStampSend -= timeStampSend % 10;
+                                }
+                                else
+                                {
+                                    timeStampSend += (10 - timeStampSend % 10);
+                                }
                                 authorization = hmacmd5_4.ComputeHash(BitConverter.GetBytes(DateTimeOffset.Now.ToUnixTimeSeconds()));
                                 _outboxQueue.TryAdd(new MessageOutbound(CMD.LOGIN, authorization));
                             }
