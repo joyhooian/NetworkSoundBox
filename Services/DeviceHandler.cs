@@ -261,7 +261,7 @@ namespace NetworkSoundBox
                             {
                                 SN = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
                                 var snBytes = message.Data.GetRange(0, 8).ToArray();
-                                var tokenStr = Encoding.UTF8.GetString(message.Data.GetRange(8, message.Data.Count - 8).ToArray());
+                                var tokenStr = Encoding.ASCII.GetString(message.Data.GetRange(8, message.Data.Count - 8).ToArray());
                                 using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                                 {
                                     var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
@@ -285,12 +285,12 @@ namespace NetworkSoundBox
                                         {
                                             timeStamp += (10 - timeStamp % 10);
                                         }
-                                        using var hmacmd5_1 = new HMACMD5(Encoding.UTF8.GetBytes("hengliyuan123"));
+                                        using var hmacmd5_1 = new HMACMD5(Encoding.ASCII.GetBytes("hengliyuan123"));
                                         var keyBytes = hmacmd5_1.ComputeHash(snBytes);
                                         using var hmacmd5_2 = new HMACMD5(keyBytes);
                                         keyBytes = hmacmd5_2.ComputeHash(BitConverter.GetBytes(timeStamp));
 
-                                        var keyStr = Encoding.UTF8.GetString(keyBytes);
+                                        var keyStr = Encoding.ASCII.GetString(keyBytes);
 
                                         if (tokenStr != keyStr)
                                         {
@@ -320,8 +320,8 @@ namespace NetworkSoundBox
                                         IPAddress,
                                         Port,
                                         DeviceSvrService.MyDeviceHandles.Count);
-                                using var hmacmd5_3 = new HMACMD5(Encoding.UTF8.GetBytes("abcdefg"));
-                                var authorization = hmacmd5_3.ComputeHash(Encoding.UTF8.GetBytes(SN));
+                                using var hmacmd5_3 = new HMACMD5(Encoding.ASCII.GetBytes("abcdefg"));
+                                var authorization = hmacmd5_3.ComputeHash(Encoding.ASCII.GetBytes(SN));
                                 using var hmacmd5_4 = new HMACMD5(authorization);
                                 var timeStampSend = DateTimeOffset.Now.ToUnixTimeSeconds();
                                 if (timeStampSend % 10 < 5)
