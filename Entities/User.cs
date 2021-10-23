@@ -1,28 +1,27 @@
 ﻿using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace NetworkSoundBox.Models
+#nullable disable
+
+namespace NetworkSoundBox.Entities
 {
-    [Table("users")]
-    public class User
+    public partial class User
     {
-        [Key]
-        [Column("id")]
-        public int UserId { get; set; }
+        public User()
+        {
+            Devices = new HashSet<Device>();
+        }
+
+        public uint Id { get; set; }
         public string Name { get; set; }
-        [Column("tel_num")]
         public string TelNum { get; set; }
-        [Column("email")]
+        public string Pswd { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         public string Email { get; set; }
-        [Column("openid")]
-        public string OpenId { get; set; }
-        [Column("role")]
+        public string Openid { get; set; }
         public string Role { get; set; }
-        [NotMapped]
-        public string ConnectionId { get; set; }
+
+        public virtual ICollection<Device> Devices { get; set; }
     }
 }

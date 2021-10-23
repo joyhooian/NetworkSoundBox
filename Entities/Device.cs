@@ -1,27 +1,24 @@
 ﻿using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace NetworkSoundBox.Models
+#nullable disable
+
+namespace NetworkSoundBox.Entities
 {
-    [Table("devices")]
-    public class Device
+    public partial class Device
     {
-        [Key]
-        public int id { get; set; }
-        public string sn { get; set; }
-        public string activation { get; set; }
-        [Column("user_id")]
-        public int userId { get; set; }
-        public string name { get; set; }
-        [Column("last_online")]
-        public DateTime? lastOnline { get; set; }
-        [Column("device_type")]
-        public string deviceType { get; set; }
-        [NotMapped]
-        public bool isOnline { get; set; }
+        public uint Id { get; set; }
+        public string Sn { get; set; }
+        public string DeviceType { get; set; }
+        public sbyte Activation { get; set; }
+        public uint UserId { get; set; }
+        public string Name { get; set; }
+        public int? GroupId { get; set; }
+        public DateTime? LastOnline { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+
+        public virtual DeviceGroup Group { get; set; }
+        public virtual User User { get; set; }
     }
 }

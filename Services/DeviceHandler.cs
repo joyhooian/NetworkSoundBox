@@ -8,9 +8,13 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using NetworkSoundBox.Models;
 using NetworkSoundBox.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using NetworkSoundBox.Entities;
+using NetworkSoundBox.Services.DTO;
+using Newtonsoft.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace NetworkSoundBox
 {
@@ -184,17 +188,21 @@ namespace NetworkSoundBox
                         _handleFilesTask.Wait();
                         _handleOutboxTask.Wait();
                         _handleInboxTask.Wait();
-                        using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
+                        using MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+                        var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
+                        if (deviceEntity != null)
                         {
-                            var deviceEntity = dbContext.Device.FirstOrDefault(d => d.sn == SN);
-                            if (deviceEntity  != null)
-                            {
-                                deviceEntity.lastOnline = logoutTime;
-                                dbContext.Update(deviceEntity);
-                                dbContext.SaveChanges();
+                            deviceEntity.LastOnline = logoutTime;
+                            dbContext.Update(deviceEntity);
+                            dbContext.SaveChanges();
                         }
-                        await _notificationHub.Clients.All.SendAsync("LogoutNotify", SN + "|" + logoutTime.ToString());
-                    }
+                        await _notificationHub.Clients.All.SendAsync(
+                            NotificationHub.NOTI_LOGOUT,
+                            JsonConvert.SerializeObject(new ConnectionNotifyDto
+                            {
+                                Sn = SN,
+                                LastOnline = logoutTime
+                            }));
                     }
                     return;
                 }
@@ -251,10 +259,12 @@ namespace NetworkSoundBox
                         case CMD.LOGIN:
                             if (SN == "")
                             {
-                                SN = System.Text.Encoding.ASCII.GetString(message.Data.ToArray());
+                                SN = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
+                                var snBytes = message.Data.GetRange(0, 8).ToArray();
+                                var tokenStr = Encoding.UTF8.GetString(message.Data.GetRange(8, message.Data.Count - 8).ToArray());
                                 using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                                 {
-                                    var deviceEntity = dbContext.Device.FirstOrDefault(d => d.sn == SN);
+                                    var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
                                     if (deviceEntity == null)
                                     {
                                         CTS.Cancel();
@@ -266,7 +276,35 @@ namespace NetworkSoundBox
                                     }
                                     else
                                     {
-                                        await _notificationHub.Clients.All.SendAsync("LoginNotify", SN);
+                                        long timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                                        if (timeStamp % 10 < 5)
+                                        {
+                                            timeStamp -= timeStamp % 10;
+                                        }
+                                        else
+                                        {
+                                            timeStamp += (10 - timeStamp % 10);
+                                        }
+                                        using var hmacmd5_1 = new HMACMD5(Encoding.UTF8.GetBytes("hengliyuan123"));
+                                        var keyBytes = hmacmd5_1.ComputeHash(snBytes);
+                                        using var hmacmd5_2 = new HMACMD5(keyBytes);
+                                        keyBytes = hmacmd5_2.ComputeHash(BitConverter.GetBytes(timeStamp));
+
+                                        var keyStr = Encoding.UTF8.GetString(keyBytes);
+
+                                        if (tokenStr != keyStr)
+                                        {
+                                            Console.WriteLine("Authorization failed. Device sends {0} while it should be {1}", tokenStr, keyStr);
+                                            CTS.Cancel();
+                                            break;
+                                        }
+
+                                        await _notificationHub.Clients.All.SendAsync(
+                                            NotificationHub.NOTI_LOGIN,
+                                            JsonConvert.SerializeObject(new ConnectionNotifyDto
+                                            {
+                                                Sn = SN
+                                            }));
                                     }
                                 }
                                 DeviceHandler device = DeviceSvrService.MyDeviceHandles.FirstOrDefault(device => device.SN == SN);
@@ -282,8 +320,12 @@ namespace NetworkSoundBox
                                         IPAddress,
                                         Port,
                                         DeviceSvrService.MyDeviceHandles.Count);
+                                using var hmacmd5_3 = new HMACMD5(Encoding.UTF8.GetBytes("abcdefg"));
+                                var authorization = hmacmd5_3.ComputeHash(Encoding.UTF8.GetBytes(SN));
+                                using var hmacmd5_4 = new HMACMD5(authorization);
+                                authorization = hmacmd5_4.ComputeHash(BitConverter.GetBytes(DateTimeOffset.Now.ToUnixTimeSeconds()));
+                                _outboxQueue.TryAdd(new MessageOutbound(CMD.LOGIN, authorization));
                             }
-                            bool a = _outboxQueue.TryAdd(new MessageOutbound(CMD.LOGIN));
                             break;
                         case CMD.FILE_TRANS_REQ:
                             if (token != null)

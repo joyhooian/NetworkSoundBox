@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
-using NetworkSoundBox.Models;
 
 namespace NetworkSoundBox.Hubs
 {
     public class NotificationHub : Hub
     {
+        public const string NOTI_LOGIN = "LoginNotify";
+        public const string NOTI_LOGOUT = "LogoutNotify";
+
         public static HashSet<Client> ClientHashSet { get; } = new HashSet<Client>();
         private readonly IHttpContextAccessor _httpContextAccessor;
 

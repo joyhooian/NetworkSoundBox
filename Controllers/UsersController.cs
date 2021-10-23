@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Authorization;
 using Newtonsoft.Json;
-using NetworkSoundBox;
+using NetworkSoundBox.Entities;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -28,7 +28,7 @@ namespace NetworkSoundBox.Controllers
         public string GetUserInfo(string token)
         {
             int uid = _jwtAppService.GetUserId(token);
-            var user = _dbContext.User.FirstOrDefault(user => user.UserId == uid);
+            var user = _dbContext.Users.FirstOrDefault(user => user.Id == uid);
             if (user != null)
             {
                 var dto =  new UserInfoDto

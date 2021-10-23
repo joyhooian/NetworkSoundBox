@@ -20,6 +20,9 @@ using NetworkSoundBox.Services.TextToSpeech;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using NetworkSoundBox.Entities;
+using AutoMapper;
+using NetworkSoundBox.AutoMap;
 
 namespace NetworkSoundBox
 {
@@ -81,6 +84,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IWxLoginService, WxLoginService>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
 
+            services.AddAutoMapper(typeof(AutoMapperProfile));
             services.AddSignalR();
             services.AddHttpClient();
             services.AddControllers();
@@ -121,6 +125,17 @@ namespace NetworkSoundBox
                         new List<string>()
                     }
                 });
+            });
+
+            Newtonsoft.Json.JsonConvert.DefaultSettings = new Func<Newtonsoft.Json.JsonSerializerSettings>(() =>
+            {
+                return new Newtonsoft.Json.JsonSerializerSettings
+                {
+                    DateFormatHandling = Newtonsoft.Json.DateFormatHandling.MicrosoftDateFormat,
+                    DateFormatString = "yyyy/MM/dd HH:mm",
+
+                    ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
+                };
             });
         }
 

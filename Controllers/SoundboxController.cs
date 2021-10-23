@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using NetworkSoundBox.Models;
 using Newtonsoft.Json;
 using System.Net.Http;
 using NetworkSoundBox.WxAuthorization.QRCode.DTO;
@@ -16,6 +15,8 @@ using NetworkSoundBox.Authorization.DTO;
 using Microsoft.AspNetCore.SignalR;
 using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Entities;
+using AutoMapper;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -30,6 +31,7 @@ namespace NetworkSoundBox.Controllers
         private readonly IWxLoginService _wxLoginService;
         private readonly IJwtAppService _jwtAppService;
         private readonly IHubContext<NotificationHub> _notificationHub;
+        private readonly IMapper _mapper;
 
         public SoundboxController(
             IDeviceSvrService tcpService,
@@ -38,7 +40,8 @@ namespace NetworkSoundBox.Controllers
             IWxLoginQRService wxLoginQRService,
             IWxLoginService wxLoginService,
             IJwtAppService jwtAppService,
-            IHubContext<NotificationHub> notificationHub)
+            IHubContext<NotificationHub> notificationHub,
+            IMapper mapper)
         {
             _deviceService = tcpService;
             _dbContext = dbContext;
@@ -47,6 +50,7 @@ namespace NetworkSoundBox.Controllers
             _wxLoginService = wxLoginService;
             _jwtAppService = jwtAppService;
             _notificationHub = notificationHub;
+            _mapper = mapper;
         }
 
         [HttpGet("wxlogin")]
@@ -59,10 +63,10 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("logintest{loginKey}")]
         public bool LoginTest(string loginKey)
         {
-            var user = _dbContext.User.FirstOrDefault();
+            var user = _dbContext.Users.FirstOrDefault();
             var jwt = _jwtAppService.Create(new UserDto
             {
-                Id = user.UserId,
+                Id = (int)user.Id,
                 UserName = user.Name,
                 Email = user.Email,
                 Phone = user.TelNum,
@@ -82,10 +86,10 @@ namespace NetworkSoundBox.Controllers
         public async Task<bool> Code2Session(string code, string loginKey)
         {
             string openId = await _wxLoginService.Code2Session(code);
-            var user = _dbContext.User.FirstOrDefault(u => u.OpenId == openId);
+            var user = _dbContext.Users.FirstOrDefault(u => u.Openid == openId);
             var jwt = _jwtAppService.Create(new UserDto
             {
-                Id = user.UserId,
+                Id = (int)user.Id,
                 UserName = user.Name,
                 Email = user.Email,
                 Phone = user.TelNum,
@@ -103,19 +107,20 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("Devices/{id}")]
         public string GetDevices(int id)
         {
-            using (_dbContext)
+            List<DeviceCustomerDto> list = _dbContext.Devices
+                .Where(device => device.UserId == id)
+                .Select(device => _mapper.Map<Device, DeviceCustomerDto>(device))
+                .ToList();
+
+            list.ForEach(device =>
             {
-                List<Device> list = _dbContext.Device.Where(device => device.userId == id).ToList();
-                list.ForEach(device =>
+                if (_deviceService.DevicePool.Find(d => d.SN == device.Sn) != null)
                 {
-                    if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
-                    {
-                        device.isOnline = true;
-                    }
-                    device.activation = "";
-                });
-                return JsonConvert.SerializeObject(list);
-            }
+                    device.IsOnline = true;
+                }
+            });
+
+            return JsonConvert.SerializeObject(list);
         }
 
         //[Authorize(Roles = "Admin")]
@@ -123,12 +128,14 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
-            List<Device> list = _dbContext.Device.ToList();
+            List<DeviceAdminDto> list = _dbContext.Devices
+                .Select(device => _mapper.Map<Device, DeviceAdminDto>(device))
+                .ToList();
             list.ForEach(device =>
             {
-                if (_deviceService.DevicePool.Find(d => d.SN == device.sn) != null)
-                    {
-                    device.isOnline = true;
+                if (_deviceService.DevicePool.Find(d => d.SN == device.Sn) != null)
+                {
+                    device.IsOnline = true;
                 }
             });
             return JsonConvert.SerializeObject(list);
@@ -139,7 +146,7 @@ namespace NetworkSoundBox.Controllers
         {
             using (_dbContext)
             {
-                var user = _dbContext.User.Find(id);
+                var user = _dbContext.Users.Find(id);
                 return user.Name;
             }
         }
