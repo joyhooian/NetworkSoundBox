@@ -260,6 +260,7 @@ namespace NetworkSoundBox
                             if (SN == "")
                             {
                                 long timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                                timeStamp += 60 * 60 * 8;
                                 if (timeStamp % 10 < 5)
                                 {
                                     timeStamp -= timeStamp % 10;
@@ -340,6 +341,7 @@ namespace NetworkSoundBox
                                 using var hmacmd5_send_2 = new HMACMD5(Encoding.ASCII.GetBytes(authStr));
 
                                 timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
+                                timeStamp += 60 * 60 * 8;
                                 if (timeStamp % 10 < 5)
                                 {
                                     timeStamp -= timeStamp % 10;
