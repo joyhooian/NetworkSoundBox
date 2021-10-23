@@ -15,6 +15,7 @@ using NetworkSoundBox.Services.DTO;
 using Newtonsoft.Json;
 using System.Security.Cryptography;
 using System.Text;
+using NetworkSoundBox.Authorization.Device;
 
 namespace NetworkSoundBox
 {
@@ -56,6 +57,7 @@ namespace NetworkSoundBox
     public class DeviceHandler
     {
         private readonly IHubContext<NotificationHub> _notificationHub;
+        private readonly IDeviceAuthorization _deviceAuthorization;
 
         public const int MAX_RETRY_TIMES = 3;
         public const int DEFAULT_TIMEOUT_LONG = 60 * 1000;
@@ -80,9 +82,10 @@ namespace NetworkSoundBox
         private int _fileCount = 0;
         private RetryManager heartbeat;
 
-        public DeviceHandler(Socket socket, IHubContext<NotificationHub> notificationHub)
+        public DeviceHandler(Socket socket, IHubContext<NotificationHub> notificationHub, IDeviceAuthorization deviceAuthorization)
         {
             _notificationHub = notificationHub;
+            _deviceAuthorization = deviceAuthorization;
 
             Socket = socket;
             Socket.ReceiveTimeout = 1;
@@ -259,42 +262,14 @@ namespace NetworkSoundBox
                         case CMD.LOGIN:
                             if (SN == "")
                             {
-                                long timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-                                timeStamp += 60 * 60 * 8;
-                                if (timeStamp % 10 < 5)
+                                if (_deviceAuthorization.Authorize(message.Data))
                                 {
-                                    timeStamp -= timeStamp % 10;
-                                }
-                                else
-                                {
-                                    timeStamp += (10 - timeStamp % 10);
-                                }
-                                var timeStampStr = timeStamp.ToString();
-                                SN = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
-                                var tokenStr = Encoding.ASCII.GetString(message.Data.GetRange(8, message.Data.Count - 8).ToArray());
-
-                                using var hmacmd5_recv_1 = new HMACMD5(Encoding.ASCII.GetBytes("hengliyuan123"));
-                                var keyBytes = hmacmd5_recv_1.ComputeHash(Encoding.ASCII.GetBytes(SN));
-                                var keyStr = "";
-                                new List<byte>(keyBytes).ForEach(b =>
-                                {
-                                    keyStr += b.ToString("x2");
-                                });
-                                using var hmacmd5_recv_2 = new HMACMD5(Encoding.ASCII.GetBytes(keyStr));
-                                keyBytes = hmacmd5_recv_2.ComputeHash(Encoding.ASCII.GetBytes(timeStampStr));
-                                keyStr = "";
-                                new List<byte>(keyBytes).ForEach(b =>
-                                {
-                                    keyStr += b.ToString("x2");
-                                });
-
-                                if (tokenStr != keyStr)
-                                {
-                                    Console.WriteLine("Authorization failed. Device sends {0} while it should be {1}", tokenStr, keyStr);
+                                    Console.WriteLine("Authorization failed");
                                     CTS.Cancel();
                                     break;
                                 }
 
+                                SN = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
                                 using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                                 {
                                     var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
@@ -331,34 +306,7 @@ namespace NetworkSoundBox
                                         Port,
                                         DeviceSvrService.MyDeviceHandles.Count);
 
-                                using var hmacmd5_send_1 = new HMACMD5(Encoding.ASCII.GetBytes("abcdefg"));
-                                var authBytes = hmacmd5_send_1.ComputeHash(Encoding.ASCII.GetBytes(SN));
-                                var authStr = "";
-                                new List<byte>(authBytes).ForEach(b =>
-                                {
-                                    authStr += b.ToString("x2");
-                                });
-                                using var hmacmd5_send_2 = new HMACMD5(Encoding.ASCII.GetBytes(authStr));
-
-                                timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-                                timeStamp += 60 * 60 * 8;
-                                if (timeStamp % 10 < 5)
-                                {
-                                    timeStamp -= timeStamp % 10;
-                                }
-                                else
-                                {
-                                    timeStamp += (10 - timeStamp % 10);
-                                }
-                                timeStampStr = timeStamp.ToString();
-
-                                authBytes = hmacmd5_send_2.ComputeHash(Encoding.ASCII.GetBytes(timeStampStr));
-                                authStr = "";
-                                new List<byte>(authBytes).ForEach(b =>
-                                {
-                                    authStr += b.ToString("x2");
-                                });
-                                _outboxQueue.TryAdd(new MessageOutbound(CMD.LOGIN, Encoding.ASCII.GetBytes(authStr)));
+                                _outboxQueue.TryAdd(new MessageOutbound(CMD.LOGIN, _deviceAuthorization.GetAuthorization(SN)));
                             }
                             break;
                         case CMD.FILE_TRANS_REQ:
@@ -656,10 +604,12 @@ namespace NetworkSoundBox
     public class ServerService : BackgroundService
     {
         private readonly IHubContext<NotificationHub> _hubContext;
+        private readonly IDeviceAuthorization _deviceAuthorization;
 
-        public ServerService(IHubContext<NotificationHub> hubContext)
+        public ServerService(IHubContext<NotificationHub> hubContext, IDeviceAuthorization deviceAuthorization)
         {
             _hubContext = hubContext;
+            _deviceAuthorization = deviceAuthorization;
         }
 
         protected async override Task ExecuteAsync(CancellationToken cancellationToken)
@@ -671,7 +621,7 @@ namespace NetworkSoundBox
             while (true)
             {
                 Console.WriteLine("[Test] Waiting for a connection...");
-                new DeviceHandler(server.AcceptSocket(), _hubContext);
+                new DeviceHandler(server.AcceptSocket(), _hubContext, _deviceAuthorization);
             }
         }
     }

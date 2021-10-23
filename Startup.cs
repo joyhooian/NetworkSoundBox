@@ -23,6 +23,7 @@ using System.Collections.Generic;
 using NetworkSoundBox.Entities;
 using AutoMapper;
 using NetworkSoundBox.AutoMap;
+using NetworkSoundBox.Authorization.Device;
 
 namespace NetworkSoundBox
 {
@@ -82,6 +83,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IWxLoginQRService, WxLoginQRService>();
             services.AddSingleton<IDeviceSvrService, DeviceSvrService>();
             services.AddSingleton<IWxLoginService, WxLoginService>();
+            services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
 
             services.AddAutoMapper(typeof(AutoMapperProfile));
