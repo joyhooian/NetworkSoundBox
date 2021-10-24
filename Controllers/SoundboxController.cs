@@ -17,6 +17,7 @@ using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Entities;
 using AutoMapper;
+using Microsoft.AspNetCore.Authentication;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -60,10 +61,10 @@ namespace NetworkSoundBox.Controllers
             return JsonConvert.SerializeObject(dto);
         }
 
-        [HttpGet("logintest{loginKey}")]
-        public bool LoginTest(string loginKey)
+        [HttpGet("logintest{loginKey}role{role}")]
+        public bool LoginTest(string loginKey, string role)
         {
-            var user = _dbContext.Users.FirstOrDefault();
+            var user = _dbContext.Users.FirstOrDefault(u => u.Role == role);
             var jwt = _jwtAppService.Create(new UserDto
             {
                 Id = (int)user.Id,
@@ -104,9 +105,30 @@ namespace NetworkSoundBox.Controllers
             return false;
         }
 
-        [HttpGet("Devices/{id}")]
-        public string GetDevices(int id)
+        [Authorize(Roles = "admin")]
+        [HttpGet("overall")]
+        public string GetOverallData()
         {
+            var userCount = _dbContext.Users.Count();
+            var deviceCount = _dbContext.Devices.Count();
+            var activedCount = _dbContext.Devices.Count(device => device.Activation == 1);
+            var onlineCount = _deviceService.DevicePool.Count();
+
+            return JsonConvert.SerializeObject(new OverallDto
+            {
+                UserCount = userCount,
+                DeviceCount = deviceCount,
+                ActivedCount = activedCount,
+                OnlineCount = onlineCount
+            });
+        }
+
+        [Authorize]
+        [HttpGet("Devices")]
+        public async Task<string> GetDevicesByUser()
+        {
+            var token = await HttpContext.GetTokenAsync("Bearer", "access_token");
+            var id = _jwtAppService.GetUserId(token);
             List<DeviceCustomerDto> list = _dbContext.Devices
                 .Where(device => device.UserId == id)
                 .Select(device => _mapper.Map<Device, DeviceCustomerDto>(device))
@@ -123,11 +145,11 @@ namespace NetworkSoundBox.Controllers
             return JsonConvert.SerializeObject(list);
         }
 
-        //[Authorize(Roles = "Admin")]
-        [Authorize]
+        [Authorize(Roles = "admin")]
         [HttpGet("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
+            
             List<DeviceAdminDto> list = _dbContext.Devices
                 .Select(device => _mapper.Map<Device, DeviceAdminDto>(device))
                 .ToList();

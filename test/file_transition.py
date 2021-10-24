@@ -18,7 +18,7 @@ client = socket(AF_INET, SOCK_STREAM)
 
 def Main():
     # 基本设置
-    sn = '00000001'
+    sn = '0065a0fa'
     secretKey = 'hengliyuan123'
     host = '127.0.0.1'
     port = 10808
@@ -27,10 +27,10 @@ def Main():
     client.connect((host, port))
 
     poll = []
-    poll.append(threading.Thread(target=HandleHeartbeat))
-    poll.append(threading.Thread(target=HandleFile))
-    poll.append(threading.Thread(target=HandleOutbox))
-    poll.append(threading.Thread(target=HandleInbox))
+    poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
+    poll.append(threading.Thread(target=HandleFile, args=(isDownloading,)))
+    poll.append(threading.Thread(target=HandleOutbox, args=(isDownloading,)))
+    poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,)))
     poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
     for thread in poll:
         thread.start()
@@ -51,15 +51,16 @@ def HandleSocket(sn: str, secretKey: str):
         inbox.put(res)
 
 # 分发接收到的消息
-def HandleInbox():
+def HandleInbox(isDownloading: bool):
     while True:
         message = inbox.get()
         # 收到登陆回复
         if message['cmd'] == 0x01:
             print('登陆成功')
         # 收到心跳回复
-        if message['cmd'] == 0x02:
-            print('收到心跳回复')
+        # if message['cmd'] == 0x02:
+
+            # print('收到心跳回复')
         # 收到下载文件命令
         if message['cmd'] == 0xA0:
             fileQueue.put({
@@ -83,20 +84,20 @@ def HandleInbox():
             })
 
 # 发送消息
-def HandleOutbox():
+def HandleOutbox(isDownloading: bool):
     while True:
         # 等待Outbox数据
         message = outbox.get()
             # 发送消息
         client.send(PackSendBuffer(message['cmd'], message['data']), 0)
-        if not isDownloading:
-            print("发送成功 命令: 0x%02x, 长度: %d"%(message['cmd'], len(message['data'])))
+        # if not isDownloading:
+            # print("发送成功 命令: 0x%02x, 长度: %d"%(message['cmd'], len(message['data'])))
 
 # 每20s发送一次心跳信号
-def HandleHeartbeat():
+def HandleHeartbeat(isDownloading: bool):
     while True:
         if not isDownloading:
-            print("发送心跳信号")
+            # print("发送心跳信号")
             outbox.put({
                 'cmd': 0x02,
                 'data': bytearray([0x00, 0x00])
@@ -104,7 +105,7 @@ def HandleHeartbeat():
         time.sleep(20)
 
 # 文件下载
-def HandleFile():
+def HandleFile(isDownloading: bool):
     # 文件编号
     fileIndex = 0
     # 文件分包总数
@@ -114,7 +115,9 @@ def HandleFile():
     # 文件缓存
     fileBuffer = bytearray()
     # 下载起始时间
+    startTime = time.time()
     # 下载结束时间
+    endTime = time.time()
 
     while True:
         # 从队列获取文件信息
@@ -150,10 +153,11 @@ def HandleFile():
             packageIndex += 1
         # 文件下载完毕
         if message['cmd'] == 0xA3:
-            if fileIndex != message['fileIdx']: 
+            if message['fileIdx'] != 0 and fileIndex != message['fileIdx']: 
                 print('文件编号错误')
-            endTime = time.time()
-            print("文件接收完毕, 耗时：%.1fs, 速度：%.1fKB/s"%(endTime-startTime, len(fileBuffer)/1024.0/(endTime-startTime)))
+            if message['fileIdx'] == fileIndex:
+                endTime = time.time()
+                print("\n文件接收完毕, 耗时：%.1fs, 速度：%.1fKB/s"%(endTime-startTime, len(fileBuffer)/1024.0/(endTime-startTime)))
             # 重置变量
             isDownloading = False
             packageCount = 0
