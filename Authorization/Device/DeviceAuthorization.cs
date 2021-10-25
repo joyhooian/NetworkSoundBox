@@ -28,7 +28,7 @@ namespace NetworkSoundBox.Authorization.Device
             if (requestMessage.Count <= 8) return false;
 
             // 获取当前时区的整10时间戳
-            var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds() + 60 * 60 * 8;
+            var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
             timeStamp += (timeStamp % 10 < 5 ? 0 : 10) - timeStamp % 10;
             var timeStampString = timeStamp.ToString();
 
@@ -51,11 +51,12 @@ namespace NetworkSoundBox.Authorization.Device
             keyString = "";
             foreach(byte b in keyBytes) { keyString += b.ToString("x2"); }
             // 比较是否相等
-            return keyString == tokenString;
+            return !(keyString == tokenString);
         }
 
         public byte[] GetAuthorization(string sn)
         {
+            var snBytes = Encoding.ASCII.GetBytes(sn);
             // 第一次加密
             // 加密对象: SN (ASCII Bytes), Salt: ApiKey (ASCII Bytes)
             var keyBytes = _hmacmd5Send.ComputeHash(Encoding.ASCII.GetBytes(sn));
@@ -66,7 +67,7 @@ namespace NetworkSoundBox.Authorization.Device
             // 加密对象: 当前地区整十秒timeStamp的字符串, Salt: KeyString (ASCII Bytes)
             using var hmacmd5 = new HMACMD5(Encoding.ASCII.GetBytes(keyString));
             // 获取时间戳
-            var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds() + 60 * 60 * 8;
+            var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
             timeStamp += (timeStamp % 10 < 5 ? 0 : 10) - timeStamp % 10;
             var timeStampString = timeStamp.ToString();
             // 开始加密

@@ -20,7 +20,9 @@ def Main():
     # 基本设置
     sn = '0065a0fa'
     secretKey = 'hengliyuan123'
-    host = '127.0.0.1'
+    apiKey = 'abcdefg'
+    # host = '127.0.0.1'
+    host = '110.40.133.195'
     port = 10808
 
     # 连接服务器
@@ -30,7 +32,7 @@ def Main():
     poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
     poll.append(threading.Thread(target=HandleFile, args=(isDownloading,)))
     poll.append(threading.Thread(target=HandleOutbox, args=(isDownloading,)))
-    poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,)))
+    poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,sn, apiKey)))
     poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
     for thread in poll:
         thread.start()
@@ -51,11 +53,14 @@ def HandleSocket(sn: str, secretKey: str):
         inbox.put(res)
 
 # 分发接收到的消息
-def HandleInbox(isDownloading: bool):
+def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
     while True:
         message = inbox.get()
         # 收到登陆回复
         if message['cmd'] == 0x01:
+            if (message['data'].decode('ascii') != Authorize(snStr, apiKeyStr)):
+                print('服务器校验失败')
+                client.close()
             print('登陆成功')
         # 收到心跳回复
         # if message['cmd'] == 0x02:
@@ -170,6 +175,22 @@ def HandleFile(isDownloading: bool):
                 'cmd': 0xA3,
                 'data': fileIndex.to_bytes(2, 'big', signed=False)
             })
+# 校验登陆返回消息
+def Authorize(snStr: str, apiKeyStr: str):
+    # 获取时间戳
+    print(snStr)
+    timeStamp = int(time.time())
+    timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
+    timeStampStr = str(timeStamp)
+    # 第一次加密
+    keyStr = hmac.new(apiKeyStr.encode('ascii'), snStr.encode('ascii'), digestmod='MD5').hexdigest()
+    print(keyStr)
+    print(timeStampStr)
+    # 第二次加密
+    keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
+    print(keyStr)
+    return keyStr
+
 
 # 组装发送Buffer
 def PackSendBuffer(cmd, data: bytearray):
@@ -187,7 +208,7 @@ def PackSendBuffer(cmd, data: bytearray):
 # 计算登陆Token
 def GetAuthorization(snStr: str, secretStr: str):
     # 第一次加密
-    keyStr = hmac.new(snStr.encode('ascii'), secretStr.encode('ascii'), digestmod='MD5').hexdigest()
+    keyStr = hmac.new(secretStr.encode('ascii'), snStr.encode('ascii'), digestmod='MD5').hexdigest()
 
     # 获取当前时区整十秒时间戳
     timeStamp = int(time.time())
