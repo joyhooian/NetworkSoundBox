@@ -110,7 +110,7 @@ namespace NetworkSoundBox.Controllers
             {
                 user = new User
                 {
-                    Name = new Guid().ToString("N"),
+                    Name = Guid.NewGuid().ToString("N"),
                     Openid = openId,
                     Role = "customer"
                 };
