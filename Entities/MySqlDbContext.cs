@@ -26,7 +26,7 @@ namespace NetworkSoundBox.Entities
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseMySql("server=110.40.133.195;uid=root;pwd=Yjhyz_951103;database=soundbox", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.26-mysql"));
+                optionsBuilder.UseMySql("server=110.40.133.195;database=soundbox;uid=root;pwd=Yjhyz_951103", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.26-mysql"));
             }
         }
 
@@ -169,12 +169,6 @@ namespace NetworkSoundBox.Entities
                 entity.Property(e => e.Openid)
                     .HasMaxLength(255)
                     .HasColumnName("openid");
-
-                entity.Property(e => e.Pswd)
-                    .IsRequired()
-                    .HasMaxLength(32)
-                    .HasColumnName("pswd")
-                    .IsFixedLength(true);
 
                 entity.Property(e => e.Role)
                     .HasMaxLength(255)

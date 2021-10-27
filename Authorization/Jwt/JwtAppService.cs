@@ -53,9 +53,8 @@ namespace NetworkSoundBox.Authorization
 
             IEnumerable<Claim> claims = new Claim[]
             {
-                new Claim(ClaimTypes.Name, userDto.UserName),
                 new Claim(ClaimTypes.Role, userDto.Role),
-                new Claim(ClaimTypes.Email, userDto.Email),
+                new Claim(ClaimTypes.NameIdentifier, userDto.OpenId),
                 new Claim(ClaimTypes.Expiration, expiresAt.ToString())
             };
             identity.AddClaims(claims);

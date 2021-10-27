@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AutoMapper;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Entities;
+using NetworkSoundBox.Authorization.DTO;
 
 namespace NetworkSoundBox.AutoMap
 {
@@ -14,6 +15,8 @@ namespace NetworkSoundBox.AutoMap
         {
             CreateMap<Device, DeviceAdminDto>().ReverseMap();
             CreateMap<Device, DeviceCustomerDto>().ReverseMap();
+            CreateMap<User, UserDto>().ReverseMap();
+            CreateMap<User, UserInfoDto>().ReverseMap();
 
             CreateMap<sbyte, bool>().ConvertUsing(s => s != 0);
         }

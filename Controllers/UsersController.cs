@@ -31,7 +31,7 @@ namespace NetworkSoundBox.Controllers
             var user = _dbContext.Users.FirstOrDefault(user => user.Id == uid);
             if (user != null)
             {
-                var dto =  new UserInfoDto
+                var dto =  new WebUserInfoDto
                 {
                     Roles = user.Role.Split(',').ToList(),
                     Introduction = "Nothing to say",

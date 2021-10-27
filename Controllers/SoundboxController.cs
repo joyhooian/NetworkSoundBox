@@ -68,9 +68,7 @@ namespace NetworkSoundBox.Controllers
             var jwt = _jwtAppService.Create(new UserDto
             {
                 Id = (int)user.Id,
-                UserName = user.Name,
-                Email = user.Email,
-                Phone = user.TelNum,
+                OpenId = "0000",
                 Role = user.Role
             });
             var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
@@ -91,9 +89,7 @@ namespace NetworkSoundBox.Controllers
             var jwt = _jwtAppService.Create(new UserDto
             {
                 Id = (int)user.Id,
-                UserName = user.Name,
-                Email = user.Email,
-                Phone = user.TelNum,
+                OpenId = user.Openid,
                 Role = user.Role
             });
             var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
@@ -103,6 +99,35 @@ namespace NetworkSoundBox.Controllers
                 return true;
             }
             return false;
+        }
+
+        [HttpPost("wx/login")]
+        public async Task<string> WxLogin(string code)
+        {
+            string openId = await _wxLoginService.Code2Session(code);
+            var user = _dbContext.Users.FirstOrDefault(u => u.Openid == openId);
+            if (user == null)
+            {
+                user = new User
+                {
+                    Name = new Guid().ToString("N"),
+                    Openid = openId,
+                    Role = "customer"
+                };
+                _dbContext.Users.Add(user);
+                _dbContext.SaveChanges();
+            }
+            _dbContext.Entry(user);
+
+            var jwt = _jwtAppService.Create(_mapper.Map<User, UserDto>(user));
+
+            return JsonConvert.SerializeObject(new LoginResultDto
+            {
+                UserInfo = _mapper.Map<User, UserInfoDto>(user),
+                Status = "success",
+                Token = jwt.Token,
+                ErrorMessage = ""
+            });
         }
 
         [Authorize(Roles = "admin")]

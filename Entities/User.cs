@@ -15,7 +15,6 @@ namespace NetworkSoundBox.Entities
         public uint Id { get; set; }
         public string Name { get; set; }
         public string TelNum { get; set; }
-        public string Pswd { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public string Email { get; set; }

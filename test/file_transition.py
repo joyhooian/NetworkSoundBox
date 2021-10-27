@@ -30,7 +30,7 @@ def Main():
 
     poll = []
     poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
-    poll.append(threading.Thread(target=HandleFile, args=(isDownloading,)))
+    poll.append(threading.Thread(target=HandleFile, args=(isDownloading,))) 
     poll.append(threading.Thread(target=HandleOutbox, args=(isDownloading,)))
     poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,sn, apiKey)))
     poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
@@ -178,17 +178,13 @@ def HandleFile(isDownloading: bool):
 # 校验登陆返回消息
 def Authorize(snStr: str, apiKeyStr: str):
     # 获取时间戳
-    print(snStr)
     timeStamp = int(time.time())
     timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
     timeStampStr = str(timeStamp)
     # 第一次加密
     keyStr = hmac.new(apiKeyStr.encode('ascii'), snStr.encode('ascii'), digestmod='MD5').hexdigest()
-    print(keyStr)
-    print(timeStampStr)
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
-    print(keyStr)
     return keyStr
 
 
