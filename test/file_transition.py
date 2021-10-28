@@ -21,8 +21,8 @@ def Main():
     sn = '0065a0fa'
     secretKey = 'hengliyuan123'
     apiKey = 'abcdefg'
-    # host = '127.0.0.1'
-    host = '110.40.133.195'
+    host = '127.0.0.1'
+    # host = '110.40.133.195'
     port = 10808
 
     # 连接服务器

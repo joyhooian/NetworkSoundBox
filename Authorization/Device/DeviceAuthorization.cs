@@ -51,6 +51,7 @@ namespace NetworkSoundBox.Authorization.Device
             keyString = "";
             foreach(byte b in keyBytes) { keyString += b.ToString("x2"); }
             // 比较是否相等
+            Console.WriteLine("Our auth_key: {0}, while recv: {1}", keyString, tokenString);
             return !(keyString == tokenString);
         }
 

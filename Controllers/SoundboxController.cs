@@ -219,7 +219,7 @@ namespace NetworkSoundBox.Controllers
             {
                 device.Socket.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
             }
-            return "Seccess!";
+            return "Success!";
         }
 
         [HttpGet("NextAndPrevious/SN{sn}Action{action}")]
@@ -243,7 +243,7 @@ namespace NetworkSoundBox.Controllers
             {
                 device.Socket.Send(new byte[] { 0x7E, 0x02, 0x04, 0xEF });
             }
-            return "Seccess!";
+            return "Success!";
         }
 
         [HttpGet("Volumn/SN{sn}Action{action}")]
@@ -267,7 +267,7 @@ namespace NetworkSoundBox.Controllers
             {
                 device.Socket.Send(new byte[] { 0x7E, 0x02, 0x06, 0xEF });
             }
-            return "Seccess!";
+            return "Success!";
         }
 
         [HttpGet("StopPlay/SN{sn}")]
@@ -284,7 +284,7 @@ namespace NetworkSoundBox.Controllers
                 return "Filed! Device is not connected!";
             }
             device.Socket.Send(new byte[] { 0x7E, 0x02, 0x0E, 0xEF });
-            return "Seccess!";
+            return "Success!";
         }
 
         [HttpGet("TTS/SN{sn}Text{text}")]
