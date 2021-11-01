@@ -45,7 +45,7 @@ def HandleSocket(sn: str, secretKey: str):
     client.send(PackSendBuffer(0x01, auth), 0)
     while True:
         #接受消息并解析
-        recvData = client.recv(300)
+        recvData = client.recv(1050)
         res = ParseMessage(recvData)
         if res == ERROR: 
             return ERROR
@@ -78,8 +78,8 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
             fileQueue.put({
                 'cmd': message['cmd'],
                 'pkgIdx': int.from_bytes(message['data'][0:2], 'big', signed=False),
-                'data': message['data'][2:257],
-                'crc': message['data'][257]
+                'data': message['data'][2:1025],
+                'crc': message['data'][1025]
             })
         # 收到文件结束命令
         if message['cmd'] == 0xA3:
@@ -134,7 +134,7 @@ def HandleFile(isDownloading: bool):
             packageIndex += 1
             isDownloading = True
             startTime = time.time()
-            print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, packageCount, packageCount * 255.0 / 1024.0))
+            print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, packageCount, packageCount))
             outbox.put({
                 'cmd': 0xA0,
                 'data': bytearray([0x00, 0x00])
@@ -238,7 +238,8 @@ def ParseMessage(recvData: bytearray):
             return ERROR
 
         # 获取Data域
-        if dataLen == 258:
+        if dataLen == 1026:
+        # if dataLen == 258:
             data = recvData[2:(dataLen+2)]
         else:
             data = recvData[4:(dataLen+4)]
@@ -263,7 +264,8 @@ def GetDataLen(recvData: bytearray, startOffset: int):
         return ERROR
 
     if recvData[startOffset + 1] == 0xA1:
-        return 258
+        return 1026
+        # return 258
 
     #数据域长度
     dataLen = int(recvData[startOffset + 2]) | int(recvData[startOffset + 3])

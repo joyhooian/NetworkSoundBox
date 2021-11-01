@@ -647,7 +647,7 @@ namespace NetworkSoundBox
         public CMD Command { get; }
         public List<byte> ParamList { get; }
         public int BufferSize { get; }
-        public byte[] MessageBuffer { get; } = new byte[300];
+        public byte[] MessageBuffer { get; } = new byte[1050];
         public MessageToken Token { get; }
 
         public MessageOutbound(CMD command, MessageToken token = null, params byte[] param)
@@ -778,6 +778,8 @@ namespace NetworkSoundBox
     }
     public class File
     {
+        // Slice file content, every subpackage has FILE_SUBPACKAGE_MODE bytes
+        private const int FILE_SUBPACKEGE_MODE = 1023;
         private readonly List<byte> _content;
         public Semaphore Semaphore { get; } = new Semaphore(0, 1);
         public FileStatus FileStatus { get; set; }
@@ -786,19 +788,26 @@ namespace NetworkSoundBox
 
         public File(List<byte> content)
         {
+            // File status pending: wait for transmition
             FileStatus = FileStatus.Pending;
+            // File content in bit
             _content = content;
+            // Queue for file subpackages
             Packages = new Queue<byte[]>();
-            PackageCount = _content.Count / 256 + 1;
+            // Need to slice file into several packages via FILE_SUBPACKAGE_MODE
+            PackageCount = _content.Count / FILE_SUBPACKEGE_MODE + 1;
+
             for (int index = 0; index < PackageCount; index++)
-            {
-                byte[] package = new byte[256];
-                int bytesCopied = index * 255;
+            {   
+                // Assign a byte array to contain subpackage content, + 1 for CheckSum byte
+                byte[] package = new byte[FILE_SUBPACKEGE_MODE + 1];
+                // Has copied bytes
+                int bytesCopied = index * FILE_SUBPACKEGE_MODE;
                 int bytesRemain = _content.Count - bytesCopied;
-                _content.CopyTo(bytesCopied, package, 0, bytesRemain > 255 ? 255 : bytesRemain);
-                for (int i = 0; i < 255; i++)
+                _content.CopyTo(bytesCopied, package, 0, bytesRemain > FILE_SUBPACKEGE_MODE ? FILE_SUBPACKEGE_MODE : bytesRemain);
+                for (int i = 0; i < FILE_SUBPACKEGE_MODE; i++)
                 {
-                    package[255] += package[i];
+                    package[^1] += package[i];
                 }
                 Packages.Enqueue(package);
             }
