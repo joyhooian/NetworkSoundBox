@@ -45,7 +45,7 @@ def HandleSocket(sn: str, secretKey: str):
     client.send(PackSendBuffer(0x01, auth), 0)
     while True:
         #接受消息并解析
-        recvData = client.recv(1050)
+        recvData = client.recv(300)
         res = ParseMessage(recvData)
         if res == ERROR: 
             return ERROR
@@ -62,10 +62,7 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                 print('服务器校验失败')
                 client.close()
             print('登陆成功')
-        # 收到心跳回复
-        # if message['cmd'] == 0x02:
 
-            # print('收到心跳回复')
         # 收到下载文件命令
         if message['cmd'] == 0xA0:
             fileQueue.put({
@@ -78,14 +75,57 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
             fileQueue.put({
                 'cmd': message['cmd'],
                 'pkgIdx': int.from_bytes(message['data'][0:2], 'big', signed=False),
-                'data': message['data'][2:1025],
-                'crc': message['data'][1025]
+                'data': message['data'][2:257],
+                'crc': message['data'][257]
             })
         # 收到文件结束命令
         if message['cmd'] == 0xA3:
             fileQueue.put({
                 'cmd': message['cmd'],
                 'fileIdx': int(message['data'][1])
+            })
+        # 收到音频控制命令
+        if 0xF0 <= message['cmd'] and message['cmd'] <= 0xF9:
+            if message['cmd'] == 0xF7:
+                index = message['data'][0] << 8 | message['data'][1]
+                if 1 <= index and index <= 6:
+                    outbox.put({
+                        'cmd': message['cmd'],
+                        'data': message['data']
+                    })
+                else:
+                    outbox.put({
+                        'cmd': message['cmd'],
+                        'data': bytearray(0x00)
+                    })
+            elif message['cmd'] == 0xF8:
+                outbox.put({
+                    'cmd': message['cmd'],
+                    'data': bytearray([0x00, 0x06])
+                })
+            elif message['cmd'] == 0xF9:
+                index = message['data'][0] << 8 | message['data'][1]
+                if 1 <= index and index <= 6:
+                    outbox.put({
+                        'cmd': message['cmd'],
+                        'data': message['data']
+                    })
+                else:
+                    outbox.put({
+                        'cmd': message['cmd'],
+                        'data': bytearray(0x00)
+                    })
+            else:
+                outbox.put({
+                    'cmd': message['cmd'],
+                    'data': bytearray()
+            })
+
+        # 收到设备控制命令
+        if 0x10 <= message['cmd'] and message['cmd'] <= 0x11:
+            outbox.put({
+                'cmd': message['cmd'],
+                'data': bytearray()
             })
 
 # 发送消息
@@ -134,7 +174,7 @@ def HandleFile(isDownloading: bool):
             packageIndex += 1
             isDownloading = True
             startTime = time.time()
-            print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, packageCount, packageCount))
+            print("进入下载模式，文件序号%d，总包数%d(%.1fKB)"%(fileIndex, packageCount, packageCount * 255.0 / 1024.0))
             outbox.put({
                 'cmd': 0xA0,
                 'data': bytearray([0x00, 0x00])
@@ -238,8 +278,7 @@ def ParseMessage(recvData: bytearray):
             return ERROR
 
         # 获取Data域
-        if dataLen == 1026:
-        # if dataLen == 258:
+        if dataLen == 258:
             data = recvData[2:(dataLen+2)]
         else:
             data = recvData[4:(dataLen+4)]
@@ -264,8 +303,7 @@ def GetDataLen(recvData: bytearray, startOffset: int):
         return ERROR
 
     if recvData[startOffset + 1] == 0xA1:
-        return 1026
-        # return 258
+        return 258
 
     #数据域长度
     dataLen = int(recvData[startOffset + 2]) | int(recvData[startOffset + 3])
@@ -283,6 +321,6 @@ def GetDataLen(recvData: bytearray, startOffset: int):
     return ERROR
 
 
-CMD_LIST = bytearray([0x01, 0x02, 0xA0, 0xA1, 0xA2, 0xA3])
+CMD_LIST = bytearray([0x01, 0x02, 0x10, 0x11, 0xA0, 0xA1, 0xA2, 0xA3, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9])
 
 Main()

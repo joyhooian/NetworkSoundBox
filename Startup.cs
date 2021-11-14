@@ -24,6 +24,8 @@ using NetworkSoundBox.Entities;
 using AutoMapper;
 using NetworkSoundBox.AutoMap;
 using NetworkSoundBox.Authorization.Device;
+using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.Device.Server;
 
 namespace NetworkSoundBox
 {
@@ -81,7 +83,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IAuthorizationHandler, PolicyHandler>();
             services.AddSingleton<IWxAccessService, WxAccessService>();
             services.AddSingleton<IWxLoginQRService, WxLoginQRService>();
-            services.AddSingleton<IDeviceSvrService, DeviceSvrService>();
+            services.AddSingleton<IDeviceContext, DeviceContext>();
             services.AddSingleton<IWxLoginService, WxLoginService>();
             services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();

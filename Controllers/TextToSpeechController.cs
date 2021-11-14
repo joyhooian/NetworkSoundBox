@@ -1,12 +1,12 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NetworkSoundBox.Services.TextToSpeech;
 using NetworkSoundBox.Controllers.DTO;
 using Newtonsoft.Json;
+using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.Message;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -15,9 +15,9 @@ namespace NetworkSoundBox.Controllers
     public class TextToSpeechController : ControllerBase
     {
         private readonly IXunfeiTtsService _xunfeiTtsService;
-        private readonly IDeviceSvrService _deviceService;
+        private readonly IDeviceContext _deviceService;
 
-        public TextToSpeechController(IXunfeiTtsService xunfeiTtsService, IDeviceSvrService deviceSvrService)
+        public TextToSpeechController(IXunfeiTtsService xunfeiTtsService, IDeviceContext deviceSvrService)
         {
             _xunfeiTtsService = xunfeiTtsService;
             _deviceService = deviceSvrService;

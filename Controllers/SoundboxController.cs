@@ -18,6 +18,8 @@ using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Entities;
 using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
+using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.Message;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -25,7 +27,7 @@ namespace NetworkSoundBox.Controllers
     [ApiController]
     public class SoundboxController : ControllerBase
     {
-        private readonly IDeviceSvrService _deviceService;
+        private readonly IDeviceContext _deviceContext;
         private readonly MySqlDbContext _dbContext;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IWxLoginQRService _wxLoginQRService;
@@ -35,7 +37,7 @@ namespace NetworkSoundBox.Controllers
         private readonly IMapper _mapper;
 
         public SoundboxController(
-            IDeviceSvrService tcpService,
+            IDeviceContext tcpService,
             MySqlDbContext dbContext,
             IHttpClientFactory httpClientFactory, 
             IWxLoginQRService wxLoginQRService,
@@ -44,7 +46,7 @@ namespace NetworkSoundBox.Controllers
             IHubContext<NotificationHub> notificationHub,
             IMapper mapper)
         {
-            _deviceService = tcpService;
+            _deviceContext = tcpService;
             _dbContext = dbContext;
             _httpClientFactory = httpClientFactory;
             _wxLoginQRService = wxLoginQRService;
@@ -137,7 +139,7 @@ namespace NetworkSoundBox.Controllers
             var userCount = _dbContext.Users.Count();
             var deviceCount = _dbContext.Devices.Count();
             var activedCount = _dbContext.Devices.Count(device => device.Activation == 1);
-            var onlineCount = _deviceService.DevicePool.Count();
+            var onlineCount = _deviceContext.DevicePool.Count();
 
             return JsonConvert.SerializeObject(new OverallDto
             {
@@ -161,7 +163,7 @@ namespace NetworkSoundBox.Controllers
 
             list.ForEach(device =>
             {
-                if (_deviceService.DevicePool.Find(d => d.SN == device.Sn) != null)
+                if (_deviceContext.DevicePool.Find(d => d.SN == device.Sn) != null)
                 {
                     device.IsOnline = true;
                 }
@@ -180,7 +182,7 @@ namespace NetworkSoundBox.Controllers
                 .ToList();
             list.ForEach(device =>
             {
-                if (_deviceService.DevicePool.Find(d => d.SN == device.Sn) != null)
+                if (_deviceContext.DevicePool.Find(d => d.SN == device.Sn) != null)
                 {
                     device.IsOnline = true;
                 }
@@ -198,94 +200,152 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        [HttpGet("PlayAndPause/SN{sn}Action{action}")]
-        public string PlayAndPause(string sn, int action)
+        #region 播放控制
+
+        /// <summary>
+        /// 获取播放列表
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <returns></returns>
+        [HttpPost("play_list")]
+        public string GetPlayList([FromQuery] string sn)
         {
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
-            }
-            catch (Exception) { }
-            if (device == null)
-            {
-                return "Filed! Device is not connected!";
-            }
-            if (action == 1)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x01, 0xEF });
-            }
-            else if (action == 0)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x02, 0xEF });
-            }
-            return "Success!";
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
+            if (device == null) return "Failed! Device is not connected!";
+
+            int ret = device.GetPlayList();
+            if (ret == -1) return "Failed!";
+
+            return ret.ToString();
         }
 
-        [HttpGet("NextAndPrevious/SN{sn}Action{action}")]
-        public string NextAndPrevious(string sn, int action)
+        /// <summary>
+        /// 删除指定音频
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <param name="index">音频序号</param>
+        /// <returns></returns>
+        [HttpPost("delete_audio")]
+        public string DeleteAudio([FromQuery] string sn, int index)
         {
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
-            }
-            catch (Exception) { }
-            if (device == null)
-            {
-                return "Filed! Device is not connected!";
-            }
-            if (action == 1)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x03, 0xEF });
-            }
-            else if (action == 0)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x04, 0xEF });
-            }
-            return "Success!";
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            
+            if (device == null) return "Failed! Device is not connected!";
+
+            if (device.DeleteAudio(index)) return "Success!";
+            return "Failed!";
+        }
+        
+        /// <summary>
+        /// 播放指定序号的音频
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <param name="index">音频序号</param>
+        /// <returns></returns>
+        [HttpPost("play_index")]
+        public string PlayIndex([FromQuery] string sn, int index)
+        {
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
+            if (device == null) return "Failed! Device is not connected!";
+
+            if (device.PlayIndex(index)) return "Success!";
+            return "Failed!";
         }
 
-        [HttpGet("Volumn/SN{sn}Action{action}")]
-        public string Volumn(string sn, int action)
+        /// <summary>
+        /// 播放或暂停
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <param name="action">1: 播放; 2: 暂停</param>
+        /// <returns></returns>
+        [HttpPost("play_pause")]
+        public string PlayOrPause([FromQuery] string sn, int action)
         {
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
-            }
-            catch (Exception) { }
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
             if (device == null)
-            {
-                return "Filed! Device is not connected!";
-            }
-            if (action == 1)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x05, 0xEF });
-            }
-            else if (action == 0)
-            {
-                device.Socket.Send(new byte[] { 0x7E, 0x02, 0x06, 0xEF });
-            }
-            return "Success!";
+                return "Failed! Device is not connected!";
+
+            if (action != 0 && action != 1)
+                return "Failed! Invalid params";
+
+            return device.SendPlayOrPause(action) ? "Success" : "Failed";
         }
 
-        [HttpGet("StopPlay/SN{sn}")]
-        public string StopPlay(string sn)
+        /// <summary>
+        /// 上一首或下一首
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <param name="action">1: 下一首; 2: 上一首</param>
+        /// <returns></returns>
+        [HttpPost("next_previous")]
+        public string NextOrPrevious([FromQuery] string sn, int action)
         {
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceService.DevicePool.TakeWhile(device => device.SN == sn).First();
-            }
-            catch (Exception) { }
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
+            if (device == null)
+                return "Failed! Device is not connected!";
+
+            if (action != 0 && action != 1)
+                return "Failed! Invalid param.";
+
+            return device.SendNextOrPrevious(action) ? "Success" : "Failed";
+        }
+
+        /// <summary>
+        /// 设备音量
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <param name="volumn">音量(0~30)</param>
+        /// <returns></returns>
+        [HttpPost("volumn")]
+        public string Volumn([FromQuery] string sn, int volumn)
+        {
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            if (device == null)
+                return "Failed! Device is not connected!";
+
+            if (!(0 <= volumn && volumn <= 30))
+                return "Failed! Invalid param.";
+
+            return device.SendVolumn(volumn) ? "Success!" : "Failed";
+        }
+        #endregion
+
+        #region 设备控制
+        /// <summary>
+        /// 设备重启
+        /// </summary>
+        /// <param name="sn">SN</param>
+        /// <returns></returns>
+        [HttpPost("reboot")]
+        public string Reboot(string sn)
+        {
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
             if (device == null)
             {
-                return "Filed! Device is not connected!";
+                return "Failed! Device is not connected.";
             }
-            device.Socket.Send(new byte[] { 0x7E, 0x02, 0x0E, 0xEF });
-            return "Success!";
+
+            return device.SendReboot() ? "Success!" : "Failed";
         }
+
+        [HttpPost("restore")]
+        public string Restore(string sn)
+        {
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+
+            if (device == null)
+            {
+                return "Failed! Device is not connected!";
+            }
+
+            return device.SendRestore() ? "Success!" : "Failed!";
+        }
+        #endregion
 
         [HttpGet("TTS/SN{sn}Text{text}")]
         public FileResult TTS(string sn, string text)
@@ -307,7 +367,7 @@ namespace NetworkSoundBox.Controllers
                 DeviceHandler device = null;
                 try
                 {
-                    device = _deviceService.DevicePool.First(device => device.SN == sn);
+                    device = _deviceContext.DevicePool.First(device => device.SN == sn);
                 }
                 catch (Exception ex) 
                 {
@@ -333,7 +393,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = _deviceService.DevicePool.First(device => device.SN == sn);
+                device = _deviceContext.DevicePool.First(device => device.SN == sn);
             }
             catch (Exception ex)
             {
@@ -369,7 +429,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = _deviceService.DevicePool.First(device => device.SN == sn);
+                device = _deviceContext.DevicePool.First(device => device.SN == sn);
             }
             catch (Exception ex)
             {
