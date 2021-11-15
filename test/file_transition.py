@@ -6,6 +6,7 @@ import threading
 from multiprocessing import Lock
 import hmac
 import queue
+import datetime
 
 ERROR = 'error'
 
@@ -29,11 +30,11 @@ def Main():
     client.connect((host, port))
 
     poll = []
-    poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
-    poll.append(threading.Thread(target=HandleFile, args=(isDownloading,))) 
+    poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
     poll.append(threading.Thread(target=HandleOutbox, args=(isDownloading,)))
     poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,sn, apiKey)))
-    poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
+    poll.append(threading.Thread(target=HandleFile, args=(isDownloading,))) 
+    poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
     for thread in poll:
         thread.start()
 
@@ -249,7 +250,8 @@ def GetAuthorization(snStr: str, secretStr: str):
     # 获取当前时区整十秒时间戳
     timeStamp = int(time.time())
     timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
-    timeStampStr = str(timeStamp)
+    timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
+    # timeStampStr = str(timeStamp)
 
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
@@ -258,6 +260,7 @@ def GetAuthorization(snStr: str, secretStr: str):
     keyBuf = bytearray()
     keyBuf += bytearray(snStr.encode('ascii'))
     keyBuf += bytearray(keyStr.encode('ascii'))
+    keyBuf += bytearray([0x11])
 
     return keyBuf
 

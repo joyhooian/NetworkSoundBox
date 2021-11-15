@@ -39,6 +39,12 @@ namespace NetworkSoundBox.Services.Message
         READ_FILES_LIST = 0xF8,
         DELETE_FILE = 0xF9
     }
+
+    public enum DeviceType
+    {
+        WiFi_Test = 0x01,
+        Cellular_Test = 0x11
+    }
     
     public enum MessageStatus
     {

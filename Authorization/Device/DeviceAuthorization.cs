@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using NetworkSoundBox.Services.Message;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,16 +26,29 @@ namespace NetworkSoundBox.Authorization.Device
         public bool Authorize(List<byte> requestMessage)
         {
             // 初步判断长度是否足够
-            if (requestMessage.Count <= 8) return false;
+            if (requestMessage.Count <= 9) return false;
+
+            if (!Enum.IsDefined(typeof(DeviceType), (int)requestMessage[^1]))
+                return false;
 
             // 获取当前时区的整10时间戳
             var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
             timeStamp += (timeStamp % 10 < 5 ? 0 : 10) - timeStamp % 10;
-            var timeStampString = timeStamp.ToString();
+            string timeStampString = "";
+            DeviceType deviceType = (DeviceType)requestMessage[^1];
+            if (deviceType == DeviceType.Cellular_Test)
+            {
+                var startTime = new DateTime(1970, 1, 1).ToLocalTime();
+                timeStampString = startTime.AddSeconds(timeStamp).ToString("yy/MM/dd, HH:mm:ss");
+            }
+            else
+            {
+                timeStampString = timeStamp.ToString();
+            }
 
             // 获取设备SN和登录请求的Token
             var snBytes = requestMessage.GetRange(0, 8).ToArray();
-            var tokenBytes = requestMessage.GetRange(8, requestMessage.Count - 8).ToArray();
+            var tokenBytes = requestMessage.GetRange(8, requestMessage.Count - 9).ToArray();
             var tokenString = Encoding.ASCII.GetString(tokenBytes);
 
             // 第一次加密
