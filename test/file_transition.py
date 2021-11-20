@@ -251,8 +251,8 @@ def GetAuthorization(snStr: str, secretStr: str):
     # 获取当前时区整十秒时间戳
     timeStamp = int(time.time())
     timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
-    timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
-    # timeStampStr = str(timeStamp)
+    # timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
+    timeStampStr = str(timeStamp)
 
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
@@ -261,7 +261,7 @@ def GetAuthorization(snStr: str, secretStr: str):
     keyBuf = bytearray()
     keyBuf += bytearray(snStr.encode('ascii'))
     keyBuf += bytearray(keyStr.encode('ascii'))
-    keyBuf += bytearray([0x11])
+    keyBuf += bytearray([0x01])
 
     return keyBuf
 

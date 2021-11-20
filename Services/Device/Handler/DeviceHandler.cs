@@ -181,7 +181,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                         case Command.LOGIN:
                             if (SN != "") break;
 
-                            if (_deviceAuthorization.Authorize(message.Data))
+                            if (!_deviceAuthorization.Authorize(message.Data))
                             {
                                 Console.WriteLine("Authorization failed");
                                 CTS.Cancel();
