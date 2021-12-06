@@ -176,6 +176,12 @@ namespace NetworkSoundBox.Services.Device.Handler
                     Token token = GetToken(message.Command);
                     heartbeat?.Reset();
                     Console.WriteLine("[{0}] Recv [{1}] Bytes CMD[0x{2:X2}]", SN, message.MessageLen, (int)message.Command);
+                    message.Data.ForEach(x =>
+                    {
+                        Console.Write("0x{0:X2}", x);
+                        Console.Write(' ');
+                    });
+                    Console.WriteLine();
                     switch (message.Command)
                     {
                         case Command.LOGIN:
@@ -239,6 +245,12 @@ namespace NetworkSoundBox.Services.Device.Handler
                         case Command.DELETE_FILE:
                         case Command.PLAY_INDEX:
                         case Command.REBOOT:
+                        case Command.LOOP_WHILE:
+                        case Command.QUERY_TIMING_MODE:
+                        case Command.QUERY_TIMING_SET:
+                        case Command.SET_TIMING_ALARM:
+                        case Command.SET_TIMING_AFTER:
+                        case Command.TIMING_REPORT:
                         case Command.FACTORY_RESET:
                             if (token != null)
                             {
@@ -288,6 +300,12 @@ namespace NetworkSoundBox.Services.Device.Handler
                                 case Command.HEARTBEAT:
                                 case Command.REBOOT:
                                 case Command.FACTORY_RESET:
+                                case Command.LOOP_WHILE:
+                                case Command.QUERY_TIMING_MODE:
+                                case Command.QUERY_TIMING_SET:
+                                case Command.SET_TIMING_ALARM:
+                                case Command.SET_TIMING_AFTER:
+                                case Command.TIMING_REPORT:
                                 case Command.PLAY:
                                 case Command.PAUSE:
                                 case Command.NEXT:
@@ -649,6 +667,40 @@ namespace NetworkSoundBox.Services.Device.Handler
         {
             Token token = new(TokenList, Command.VOLUMN, null);
             Outbound outbound = new(Command.VOLUMN, token, 0x00, (byte)volumn);
+            try
+            {
+                _outboxQueue.Add(outbound, CTS.Token);
+                token.WaitReplied();
+                return token.Status == MessageStatus.Replied;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+        #endregion
+
+        #region 定时控制
+        public bool SendTimeSetting(List<byte> data)
+        {
+            Token token = new(TokenList, Command.SET_TIMING_ALARM, null);
+            Outbound outbound = new(Command.SET_TIMING_ALARM, token, data.ToArray());
+            try
+            {
+                _outboxQueue.Add(outbound, CTS.Token);
+                token.WaitReplied();
+                return token.Status == MessageStatus.Replied;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public bool SendTimeSettingAfter(List<byte> data)
+        {
+            Token token = new(TokenList, Command.SET_TIMING_AFTER, null);
+            Outbound outbound = new(Command.SET_TIMING_AFTER, token, data.ToArray());
             try
             {
                 _outboxQueue.Add(outbound, CTS.Token);

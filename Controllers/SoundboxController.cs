@@ -416,6 +416,82 @@ namespace NetworkSoundBox.Controllers
             return true;
         }
 
+        [HttpPost("alarms")]
+        public string SetAlarms(TimeSettingDto dto)
+        {
+            if (dto == null)
+            {
+                return "Fail";
+            }
+            DeviceHandler device = null;
+            try
+            {
+                device = DeviceContext.DevicePool.First(d => d.SN == dto.Sn);
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            if (device == null)
+            {
+                return "Fail. Device hasn't connected";
+            }
+            List<byte> data = new();
+            data.Add((byte)dto.Index);
+            data.Add((byte)dto.StartTime.Hour);
+            data.Add((byte)dto.StartTime.Minute);
+            data.Add((byte)dto.EndTime.Hour);
+            data.Add((byte)dto.EndTime.Minute);
+            data.Add((byte)dto.Volumn);
+            data.Add((byte)(dto.Relay ? 0x01 : 0x00));
+            dto.Weekdays.ForEach(d =>
+            {
+                data.Add((byte)(d + 1));
+            });
+            data.Add((byte)dto.Audio);
+            if (device.SendTimeSetting(data))
+            {
+                return "Success";
+            }
+            return "Fail";
+        }
+
+        [HttpPost("alarms_timeAfter")]
+        public string SetAlarmsAfter([FromBody] TimeSettingAfterDto dto)
+        {
+            if (dto == null)
+            {
+                return "Fail";
+            }
+            DeviceHandler device = null;
+            try
+            {
+                device = DeviceContext.DevicePool.First(d => d.SN == dto.Sn);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            if (device == null)
+            {
+                return "Fail. Device hasn't connected";
+            }
+            List<byte> data = new();
+            data.Add((byte)((dto.TimeDelay & 0xFF00) >> 8));
+            data.Add((byte)(dto.TimeDelay & 0x00FF));
+            data.Add((byte)dto.Volumn);
+            data.Add((byte)(dto.Relay ? 0x01: 0x00));
+            data.Add((byte)dto.Audio);
+            if (device.SendTimeSettingAfter(data))
+            {
+                return "Success";
+            }
+            else
+            {
+                return "Fail";
+            }
+        }
+
         [HttpPost("TransFile/SN{sn}")]
         public string TransFile(string sn, IFormFile file)
         {

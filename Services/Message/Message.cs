@@ -20,6 +20,11 @@ namespace NetworkSoundBox.Services.Message
 
         // Timing
         LOOP_WHILE = 0x20,
+        QUERY_TIMING_MODE = 0x21,
+        QUERY_TIMING_SET = 0x22,
+        SET_TIMING_ALARM = 0x23,
+        SET_TIMING_AFTER = 0x24,
+        TIMING_REPORT = 0x25,
 
         // File Progress
         FILE_TRANS_REQ = 0xA0,

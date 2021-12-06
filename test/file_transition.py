@@ -23,8 +23,8 @@ def Main():
     sn = '02387448'
     secretKey = 'hengliyuan123'
     apiKey = 'abcdefg'
-    # host = '127.0.0.1'
-    host = '110.40.133.195'
+    host = '127.0.0.1'
+    # host = '110.40.133.195'
     port = 10808
 
     # 连接服务器
@@ -86,6 +86,13 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                 'cmd': message['cmd'],
                 'fileIdx': int(message['data'][1])
             })
+        # 收到定时命令
+        if message['cmd'] == 0x23 or message['cmd'] == 0x24:
+            outbox.put({
+                'cmd': message['cmd'],
+                'data': bytearray()
+            })
+            print(message['data'])
         # 收到音频控制命令
         if 0xF0 <= message['cmd'] and message['cmd'] <= 0xF9:
             if message['cmd'] == 0xF7:
@@ -251,8 +258,8 @@ def GetAuthorization(snStr: str, secretStr: str):
     # 获取当前时区整十秒时间戳
     timeStamp = int(time.time())
     timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
-    # timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
-    timeStampStr = str(timeStamp)
+    timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
+    # timeStampStr = str(timeStamp)
 
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
@@ -261,7 +268,7 @@ def GetAuthorization(snStr: str, secretStr: str):
     keyBuf = bytearray()
     keyBuf += bytearray(snStr.encode('ascii'))
     keyBuf += bytearray(keyStr.encode('ascii'))
-    keyBuf += bytearray([0x01])
+    keyBuf += bytearray([0x11])
 
     return keyBuf
 
@@ -325,6 +332,6 @@ def GetDataLen(recvData: bytearray, startOffset: int):
     return ERROR
 
 
-CMD_LIST = bytearray([0x01, 0x02, 0x10, 0x11, 0xA0, 0xA1, 0xA2, 0xA3, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9])
+CMD_LIST = bytearray([0x01, 0x02, 0x10, 0x11, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0xA0, 0xA1, 0xA2, 0xA3, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9])
 
 Main()
