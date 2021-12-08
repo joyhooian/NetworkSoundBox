@@ -10,6 +10,7 @@ namespace NetworkSoundBox.Controllers.DTO
         public string Sn { get; set; }
         public string DeviceType { get; set; }
         public bool Activation { get; set; }
+        public string ActivationKey { get; set; } 
         public int UserId { get; set; }
         public string Name { get; set; }
         public bool IsOnline { get; set; }

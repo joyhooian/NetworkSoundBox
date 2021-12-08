@@ -11,6 +11,7 @@ namespace NetworkSoundBox.Entities
         public string Sn { get; set; }
         public string DeviceType { get; set; }
         public sbyte Activation { get; set; }
+        public string ActivationKey { get; set; }
         public uint UserId { get; set; }
         public string Name { get; set; }
         public int? GroupId { get; set; }

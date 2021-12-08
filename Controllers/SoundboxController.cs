@@ -150,6 +150,18 @@ namespace NetworkSoundBox.Controllers
             });
         }
 
+        [Authorize(Roles = "admin")]
+        [HttpPost("add_device")]
+        public string AddDevice([FromBody] DeviceAdminDto dto)
+        {
+            dto.ActivationKey = Guid.NewGuid().ToString("N");
+            Device deviceEntity = _mapper.Map<DeviceAdminDto, Device>(dto);
+            deviceEntity.UserId = 1;
+            _dbContext.Devices.Add(deviceEntity);
+            _dbContext.SaveChanges();
+            return "Success";
+        }
+
         [Authorize]
         [HttpGet("Devices")]
         public async Task<string> GetDevicesByUser()
