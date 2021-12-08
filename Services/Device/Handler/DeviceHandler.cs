@@ -27,6 +27,7 @@ namespace NetworkSoundBox.Services.Device.Handler
         public const int DEFAULT_TIMEOUT_LONG = 15 * 1000;
 
         public string SN { get; private set; }
+        public DeviceType Type { get;private set; }
         public Socket Socket { get; }
         public IPAddress IPAddress { get; private set; }
         public int Port { get; private set; }
@@ -195,6 +196,12 @@ namespace NetworkSoundBox.Services.Device.Handler
                             }
 
                             SN = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
+                            byte tempDeviceType = message.Data[^1];
+                            if (!Enum.IsDefined(typeof(DeviceType), (int)tempDeviceType))
+                            {
+                                Console.WriteLine("Invalid Device-Type");
+                            }
+                            Type = (DeviceType)tempDeviceType;
                             using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                             {
                                 var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
@@ -204,12 +211,18 @@ namespace NetworkSoundBox.Services.Device.Handler
                                     Console.WriteLine($"Invalid SN \"{SN}\", socket @{IPAddress}:{Port} will be closed!");
                                     break;
                                 }
+                                if (deviceEntity.DeviceType == "TEST")
+                                {
+                                    deviceEntity.DeviceType = Enum.GetName(Type);
+                                    dbContext.SaveChanges();
+                                }
                                 await _notificationHub.Clients.All.SendAsync(
                                     NotificationHub.NOTI_LOGIN,
                                     JsonConvert.SerializeObject(new ConnectionNotifyDto
                                     {
-                                        Sn = SN
-                                    }));
+                                        Sn = SN,
+                                        DeviceType = Enum.GetName(Type)
+                            }));
                             }
                             DeviceHandler device = DeviceContext.DevicePool.FirstOrDefault(device => device.SN == SN);
                             if (device != null)
@@ -220,7 +233,6 @@ namespace NetworkSoundBox.Services.Device.Handler
                             }
                             DeviceContext.DevicePool.Add(this);
                             Console.WriteLine($"Device with SN \"{SN}\" has loged in, socket @{IPAddress}:{Port}. Now we have got {DeviceContext.DevicePool.Count} devices.");
-
                             _outboxQueue.TryAdd(new Outbound(Command.LOGIN, null, _deviceAuthorization.GetAuthorization(SN)));
                             break;
                         case Command.HEARTBEAT:

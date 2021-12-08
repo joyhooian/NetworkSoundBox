@@ -8,6 +8,7 @@ namespace NetworkSoundBox.Services.DTO
     public class ConnectionNotifyDto
     {
         public string Sn { get; set; }
+        public string DeviceType { get; set; }
         public DateTime LastOnline { get; set; }
     }
 }
