@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
-using NetworkSoundBox.Authorization;
+using NetworkSoundBox.Authorization.Jwt;
 
 namespace NetworkSoundBox.Authorization.Policy
 {

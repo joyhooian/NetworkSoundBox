@@ -12,20 +12,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using NetworkSoundBox.Authorization;
-using NetworkSoundBox.WxAuthorization.AccessToken;
-using NetworkSoundBox.WxAuthorization.QRCode;
 using NetworkSoundBox.Authorization.WxAuthorization.Login;
 using NetworkSoundBox.Services.TextToSpeech;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using NetworkSoundBox.Entities;
-using AutoMapper;
 using NetworkSoundBox.AutoMap;
 using NetworkSoundBox.Authorization.Device;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Device.Server;
+using NetworkSoundBox.Authorization.Jwt;
+using NetworkSoundBox.Authorization.WxAuthorization.QRCode;
+using NetworkSoundBox.Authorization.WxAuthorization.AccessToken;
+using NetworkSoundBox.Filter;
 
 namespace NetworkSoundBox
 {
@@ -87,6 +86,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IWxLoginService, WxLoginService>();
             services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
+            services.AddScoped<ResourceAuthAttribute>();
 
             services.AddAutoMapper(typeof(AutoMapperProfile));
             services.AddSignalR();

@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using NetworkSoundBox.WxAuthorization.AccessToken;
 using System.Net.Http;
 using Newtonsoft.Json;
-using NetworkSoundBox.WxAuthorization.QRCode.DTO;
 using Microsoft.AspNetCore.Mvc;
+using NetworkSoundBox.Authorization.WxAuthorization.QRCode.DTO;
+using NetworkSoundBox.Authorization.WxAuthorization.AccessToken;
 
-namespace NetworkSoundBox.WxAuthorization.QRCode
+namespace NetworkSoundBox.Authorization.WxAuthorization.QRCode
 {
     public class WxLoginQRService : IWxLoginQRService
     {

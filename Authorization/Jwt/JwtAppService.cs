@@ -1,5 +1,4 @@
-﻿using NetworkSoundBox.Authorization.DTO;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Authentication;
@@ -11,8 +10,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using System.Text;
 using System.Security.Claims;
+using NetworkSoundBox.Authorization.Jwt.DTO;
+using NetworkSoundBox.Authorization.Secret.DTO;
 
-namespace NetworkSoundBox.Authorization
+namespace NetworkSoundBox.Authorization.Jwt
 {
     public class JwtAppService : IJwtAppService
     {
@@ -55,7 +56,7 @@ namespace NetworkSoundBox.Authorization
             {
                 new Claim(ClaimTypes.Role, userDto.Role),
                 new Claim(ClaimTypes.NameIdentifier, userDto.OpenId),
-                new Claim(ClaimTypes.Expiration, expiresAt.ToString())
+                new Claim(ClaimTypes.Expiration, expiresAt.ToString()),
             };
             identity.AddClaims(claims);
 

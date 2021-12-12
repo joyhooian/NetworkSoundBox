@@ -6,12 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using System.Net.Http;
-using NetworkSoundBox.WxAuthorization.QRCode.DTO;
-using NetworkSoundBox.WxAuthorization.QRCode;
 using Microsoft.AspNetCore.Authorization;
 using NetworkSoundBox.Authorization.WxAuthorization.Login;
-using NetworkSoundBox.Authorization;
-using NetworkSoundBox.Authorization.DTO;
 using Microsoft.AspNetCore.SignalR;
 using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Controllers.DTO;
@@ -20,6 +16,12 @@ using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Message;
+using System.Text;
+using System.Security.Claims;
+using NetworkSoundBox.Authorization.Jwt;
+using NetworkSoundBox.Authorization.WxAuthorization.QRCode;
+using NetworkSoundBox.Authorization.WxAuthorization.QRCode.DTO;
+using NetworkSoundBox.Authorization.Secret.DTO;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -70,7 +72,7 @@ namespace NetworkSoundBox.Controllers
             var jwt = _jwtAppService.Create(new UserDto
             {
                 Id = (int)user.Id,
-                OpenId = "0000",
+                OpenId = user.Openid,
                 Role = user.Role
             });
             var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
@@ -154,10 +156,88 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("add_device")]
         public string AddDevice([FromBody] DeviceAdminDto dto)
         {
-            dto.ActivationKey = Guid.NewGuid().ToString("N");
-            Device deviceEntity = _mapper.Map<DeviceAdminDto, Device>(dto);
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == dto.Sn);
+            if (deviceEntity != null)
+            {
+                return "Fail. The device has already existed.";
+            }
+            dto.ActivationKey = Guid.NewGuid().ToString();
+            deviceEntity = _mapper.Map<DeviceAdminDto, Device>(dto);
             deviceEntity.UserId = 1;
             _dbContext.Devices.Add(deviceEntity);
+            _dbContext.SaveChanges();
+            return "Success";
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPost("del_device")]
+        public string DeleteDevice([FromQuery] string sn)
+        {
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
+            if (deviceEntity == null)
+            {
+                return "Fail";
+            }
+            _dbContext.Devices.Remove(deviceEntity);
+            _dbContext.SaveChanges();
+            return "Success";
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPost("edit_device")]
+        public string EditDevice([FromBody] DeviceAdminDto dto)
+        {
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == dto.Sn);
+            if (deviceEntity == null)
+            {
+                return "Fail. Device is not existed.";
+            }
+            try
+            {
+                deviceEntity.UserId = (uint)dto.UserId;
+                deviceEntity.Name = dto.Name;
+                deviceEntity.DeviceType = dto.DeviceType;
+                _dbContext.SaveChanges();
+            }
+            catch (Exception)
+            {
+                return "Fail. Invalid param";
+            }
+            return "Success";
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPost("manual_active")]
+        public string ManualActive([FromQuery] string sn)
+        {
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
+            if (deviceEntity == null)
+            {
+                return "Fail. Device is not existed.";
+            }
+            if (deviceEntity.Activation == 1)
+            {
+                return "Warn. Device has already been actived.";
+            }
+            deviceEntity.Activation = 1;
+            _dbContext.SaveChanges();
+            return "Success.";
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPost("manual_deactive")]
+        public string ManualDeactive([FromQuery] string sn)
+        {
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
+            if (deviceEntity == null)
+            {
+                return "Fail. Device is not existed.";
+            }
+            if (deviceEntity.Activation == 0)
+            {
+                return "Warn. Device has already been deactived.";
+            }
+            deviceEntity.Activation = 0;
             _dbContext.SaveChanges();
             return "Success";
         }
@@ -501,6 +581,64 @@ namespace NetworkSoundBox.Controllers
             else
             {
                 return "Fail";
+            }
+        }
+
+        [HttpPost("transfile_cellular")]
+        public IActionResult TransFileCellular(string sn, IFormFile file)
+        {
+            if (file == null)
+            {
+                throw new HttpRequestException("文件为空");
+            }
+
+            // 文件大小应小于50M
+            if (file.Length >= 1024 * 1024 * 50)
+            {
+                throw new HttpRequestException("文件过大");
+            }
+
+            // 文件类型应当为MP3
+            //if (file.ContentType != "audio/mpeg")
+            //{
+            //    throw new HttpRequestException("文件格式错误");
+            //}
+
+            Console.WriteLine("Upload 1 file");
+
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            //if (device == null)
+            //{
+            //    throw new HttpRequestException("设备未连接");
+            //}
+
+            DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
+            string fileToken = Guid.NewGuid().ToString("N")[..8];
+            byte[] data = new byte[file.Length];
+            file.OpenReadStream().Read(data);
+            FileContentResult fileContentResult = new(data, "audio/mp3");
+            _deviceContext.FileList.Add(fileToken, new(dateTimeOffset, fileContentResult));
+            var fileTokenBytes = Encoding.ASCII.GetBytes(fileToken);
+            if (device.ReqFileTrans(fileTokenBytes))
+            {
+                return Ok(fileToken);
+            }
+            else
+            {
+                throw new HttpRequestException("设备未响应");
+            }
+        }
+
+        [HttpGet("downloadfile_cellular")]
+        public IActionResult DownloadFileCellular([FromQuery] string fileToken)
+        {
+            if (_deviceContext.FileList.TryGetValue(fileToken, out KeyValuePair<DateTimeOffset, FileContentResult> filePair))
+            {
+                return filePair.Value;
+            }
+            else
+            {
+                return BadRequest();
             }
         }
 

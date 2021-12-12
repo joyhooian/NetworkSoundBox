@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NetworkSoundBox.Controllers.DTO;
-using NetworkSoundBox.Authorization;
 using Newtonsoft.Json;
 using NetworkSoundBox.Entities;
+using NetworkSoundBox.Authorization.Jwt;
 
 namespace NetworkSoundBox.Controllers
 {

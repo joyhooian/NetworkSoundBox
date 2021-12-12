@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Http;
 using System.Net.Http;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Configuration;
-using NetworkSoundBox.WxAuthorization.AccessToken.DTO;
+using NetworkSoundBox.Authorization.WxAuthorization.AccessToken.DTO;
 
-namespace NetworkSoundBox.WxAuthorization.AccessToken
+namespace NetworkSoundBox.Authorization.WxAuthorization.AccessToken
 {
     public class WxAccessService : IWxAccessService
     {

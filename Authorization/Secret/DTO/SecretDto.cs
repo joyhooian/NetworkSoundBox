@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace NetworkSoundBox.Authorization.DTO
+namespace NetworkSoundBox.Authorization.Secret.DTO
 {
     public class SecretDto
     {

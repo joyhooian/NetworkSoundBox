@@ -1,10 +1,10 @@
-﻿using NetworkSoundBox.WxAuthorization.QRCode.DTO;
+﻿using NetworkSoundBox.Authorization.WxAuthorization.QRCode.DTO;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace NetworkSoundBox.WxAuthorization.QRCode
+namespace NetworkSoundBox.Authorization.WxAuthorization.QRCode
 {
     public interface IWxLoginQRService
     {

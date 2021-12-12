@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using AutoMapper;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Entities;
-using NetworkSoundBox.Authorization.DTO;
+using NetworkSoundBox.Authorization.Secret.DTO;
 
 namespace NetworkSoundBox.AutoMap
 {

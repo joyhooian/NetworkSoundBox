@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using NetworkSoundBox.Authorization.DTO;
+using NetworkSoundBox.Authorization.Jwt.DTO;
+using NetworkSoundBox.Authorization.Secret.DTO;
 
-namespace NetworkSoundBox.Authorization
+namespace NetworkSoundBox.Authorization.Jwt
 {
     public interface IJwtAppService
     {

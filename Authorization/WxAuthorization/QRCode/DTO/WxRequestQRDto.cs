@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace NetworkSoundBox.WxAuthorization.QRCode.DTO
+namespace NetworkSoundBox.Authorization.WxAuthorization.QRCode.DTO
 {
     public class WxRequestQRDto
     {

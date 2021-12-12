@@ -27,10 +27,12 @@ namespace NetworkSoundBox.Services.Message
         TIMING_REPORT = 0x25,
 
         // File Progress
-        FILE_TRANS_REQ = 0xA0,
-        FILE_TRANS_PROC = 0xA1,
-        FILE_TRANS_ERR = 0xA2,
-        FILE_TRANS_RPT = 0xA3,
+        FILE_TRANS_REQ_WIFI = 0xA0,
+        FILE_TRANS_PROC_WIFI = 0xA1,
+        FILE_TRANS_ERR_WIFI = 0xA2,
+        FILE_TRANS_RPT_WIFI = 0xA3,
+        FILE_TRANS_REQ_CELL = 0xA4,
+        FILE_TRANS_RPT_CELL = 0xA5,
 
         // Play Control
         PLAY = 0xF0,

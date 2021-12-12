@@ -28,6 +28,7 @@ namespace NetworkSoundBox.Services.Device.Handler
 
         public string SN { get; private set; }
         public DeviceType Type { get;private set; }
+        public string UserOpenId { get; private set; }
         public Socket Socket { get; }
         public IPAddress IPAddress { get; private set; }
         public int Port { get; private set; }
@@ -204,13 +205,14 @@ namespace NetworkSoundBox.Services.Device.Handler
                             Type = (DeviceType)tempDeviceType;
                             using (MySqlDbContext dbContext = new(new DbContextOptionsBuilder<MySqlDbContext>().Options))
                             {
-                                var deviceEntity = dbContext.Devices.FirstOrDefault(d => d.Sn == SN);
+                                var deviceEntity = dbContext.Devices.Include(d => d.User).FirstOrDefault(d => d.Sn == SN);
                                 if (deviceEntity == null)
                                 {
                                     CTS.Cancel();
                                     Console.WriteLine($"Invalid SN \"{SN}\", socket @{IPAddress}:{Port} will be closed!");
                                     break;
                                 }
+                                UserOpenId = deviceEntity.User.Openid;
                                 if (deviceEntity.DeviceType == "TEST")
                                 {
                                     deviceEntity.DeviceType = Enum.GetName(Type);
@@ -239,15 +241,17 @@ namespace NetworkSoundBox.Services.Device.Handler
                             Console.WriteLine("收到心跳信号");
                             _outboxQueue.Add(new Outbound(Command.HEARTBEAT));
                             break;
-                        case Command.FILE_TRANS_ERR:
+                        case Command.FILE_TRANS_ERR_WIFI:
                             if (token != null)
                             {
                                 token.Data = message.Data.ToArray();
                                 token.Status = MessageStatus.Failed;
                             }
                             break;
-                        case Command.FILE_TRANS_REQ:
-                        case Command.FILE_TRANS_RPT:
+                        case Command.FILE_TRANS_REQ_WIFI:
+                        case Command.FILE_TRANS_RPT_WIFI:
+                        case Command.FILE_TRANS_REQ_CELL:
+                        case Command.FILE_TRANS_RPT_CELL:
                         case Command.PLAY:
                         case Command.PAUSE:
                         case Command.NEXT:
@@ -328,9 +332,11 @@ namespace NetworkSoundBox.Services.Device.Handler
                                 case Command.PLAY_INDEX:
                                 case Command.READ_FILES_LIST:
                                 case Command.DELETE_FILE:
-                                case Command.FILE_TRANS_REQ:
-                                case Command.FILE_TRANS_PROC:
-                                case Command.FILE_TRANS_RPT:
+                                case Command.FILE_TRANS_REQ_WIFI:
+                                case Command.FILE_TRANS_PROC_WIFI:
+                                case Command.FILE_TRANS_RPT_WIFI:
+                                case Command.FILE_TRANS_REQ_CELL:
+                                case Command.FILE_TRANS_RPT_CELL:
                                     Socket.Send(message.Data.ToArray(), message.MessageLen, 0);
                                     message.Token.Status = MessageStatus.Sent;
                                     break;
@@ -398,12 +404,12 @@ namespace NetworkSoundBox.Services.Device.Handler
 
                         Token token = new(
                             TokenList,
-                            Command.FILE_TRANS_REQ,//期待回复命令
-                            Command.FILE_TRANS_ERR,//错误回报命令
+                            Command.FILE_TRANS_REQ_WIFI,//期待回复命令
+                            Command.FILE_TRANS_ERR_WIFI,//错误回报命令
                             new byte[] { 0x00, 0x00 });//期待回复数据
 
                         _outboxQueue.Add(new(
-                            Command.FILE_TRANS_REQ,//待发送命令
+                            Command.FILE_TRANS_REQ_WIFI,//待发送命令
                             token,
                             (byte)(_fileCount + 1),//文件序号
                             (byte)(file.PackageCount >> 8),//总包数
@@ -433,12 +439,12 @@ namespace NetworkSoundBox.Services.Device.Handler
 
                             Token token = new(
                                 TokenList,
-                                Command.FILE_TRANS_REQ,//期待回复命令
-                                Command.FILE_TRANS_ERR,//错误回报命令
+                                Command.FILE_TRANS_REQ_WIFI,//期待回复命令
+                                Command.FILE_TRANS_ERR_WIFI,//错误回报命令
                                 new byte[] { (byte)(pkgIdx >> 8), (byte)pkgIdx });//期待回复数据
 
                             _outboxQueue.Add(new(
-                                Command.FILE_TRANS_PROC,//待发送命令
+                                Command.FILE_TRANS_PROC_WIFI,//待发送命令
                                 pkgIdx,//包序号
                                 token,
                                 pkg));//文件数据
@@ -462,12 +468,12 @@ namespace NetworkSoundBox.Services.Device.Handler
 
                         Token token = new(
                             TokenList,
-                            Command.FILE_TRANS_RPT,
-                            Command.FILE_TRANS_ERR,
+                            Command.FILE_TRANS_RPT_WIFI,
+                            Command.FILE_TRANS_ERR_WIFI,
                             new byte[] { 0x00, (byte)(_fileCount + 1) });
 
                         _outboxQueue.Add(new Outbound(
-                            Command.FILE_TRANS_RPT,
+                            Command.FILE_TRANS_RPT_WIFI,
                             token,
                             0x00, (byte)(_fileCount + 1)));
 
@@ -496,12 +502,12 @@ namespace NetworkSoundBox.Services.Device.Handler
 
                             Token token = new(
                                 TokenList,
-                                Command.FILE_TRANS_RPT,
-                                Command.FILE_TRANS_RPT,
+                                Command.FILE_TRANS_RPT_WIFI,
+                                Command.FILE_TRANS_RPT_WIFI,
                                 new byte[] { 0x00, 0x00 });
 
                             _outboxQueue.Add(new Outbound(
-                                Command.FILE_TRANS_RPT,
+                                Command.FILE_TRANS_RPT_WIFI,
                                 token,
                                 0x00, 0x00));
 
@@ -767,6 +773,29 @@ namespace NetworkSoundBox.Services.Device.Handler
             }
         }
         #endregion
+
+        /// <summary>
+        /// 4G设备传输文件通知
+        /// </summary>
+        /// <param name="fileToken"></param>
+        /// <returns></returns>
+        public bool ReqFileTrans(byte[] fileToken)
+        {
+            if (fileToken == null) return false;
+
+            Token token = new(TokenList, Command.FILE_TRANS_REQ_CELL, null);
+            Outbound outbound = new(Command.FILE_TRANS_REQ_CELL, token, fileToken);
+            try
+            {
+                _outboxQueue.Add(outbound, CTS.Token);
+                token.WaitReplied();
+                return token.Status == MessageStatus.Replied;
+            }
+            catch(Exception)
+            {
+                return false;
+            }
+        }
 
         /// <summary>
         /// 登陆超时回调

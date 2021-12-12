@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace NetworkSoundBox.WxAuthorization.QRCode.DTO
+namespace NetworkSoundBox.Authorization.WxAuthorization.QRCode.DTO
 {
     public class WxErrorQRDto
     {
