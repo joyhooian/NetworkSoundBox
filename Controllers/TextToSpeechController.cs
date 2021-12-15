@@ -43,7 +43,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = _deviceService.DevicePool.First(device => device.SN == sn);
+                device = _deviceService.DevicePool.First(pair => pair.Key == sn).Value;
             }
             catch (Exception ex)
             {

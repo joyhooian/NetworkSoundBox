@@ -99,9 +99,9 @@ namespace NetworkSoundBox.Services.Device.Handler
                     Socket.Close();
                     Socket.Dispose();
                     var logoutTime = DateTime.Now;
-                    if (DeviceContext.DevicePool.Contains(this))
+                    if (DeviceContext.DevicePool.ContainsKey(SN))
                     {
-                        DeviceContext.DevicePool.Remove(this);
+                        DeviceContext.DevicePool.Remove(SN);
                         _handleFilesTask.Wait();
                         _handleOutboxTask.Wait();
                         _handleInboxTask.Wait();
@@ -226,14 +226,14 @@ namespace NetworkSoundBox.Services.Device.Handler
                                         DeviceType = Enum.GetName(Type)
                             }));
                             }
-                            DeviceHandler device = DeviceContext.DevicePool.FirstOrDefault(device => device.SN == SN);
+                            DeviceHandler device = DeviceContext.DevicePool.FirstOrDefault(pair => pair.Key == SN).Value;
                             if (device != null)
                             {
                                 device.CTS.Cancel();
-                                DeviceContext.DevicePool.Remove(device);
+                                DeviceContext.DevicePool.Remove(SN);
                                 Console.WriteLine("Device with SN \"{0}\" has existed, renew device", SN);
                             }
-                            DeviceContext.DevicePool.Add(this);
+                            DeviceContext.DevicePool.Add(SN, this);
                             Console.WriteLine($"Device with SN \"{SN}\" has loged in, socket @{IPAddress}:{Port}. Now we have got {DeviceContext.DevicePool.Count} devices.");
                             _outboxQueue.TryAdd(new Outbound(Command.LOGIN, null, _deviceAuthorization.GetAuthorization(SN)));
                             break;
@@ -699,7 +699,7 @@ namespace NetworkSoundBox.Services.Device.Handler
         #endregion
 
         #region 定时控制
-        public bool SendTimeSetting(List<byte> data)
+        public bool SendCronTask(List<byte> data)
         {
             Token token = new(TokenList, Command.SET_TIMING_ALARM, null);
             Outbound outbound = new(Command.SET_TIMING_ALARM, token, data.ToArray());
@@ -715,7 +715,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             }
         }
 
-        public bool SendTimeSettingAfter(List<byte> data)
+        public bool SendDelayTask(List<byte> data)
         {
             Token token = new(TokenList, Command.SET_TIMING_AFTER, null);
             Outbound outbound = new(Command.SET_TIMING_AFTER, token, data.ToArray());

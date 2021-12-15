@@ -141,7 +141,7 @@ namespace NetworkSoundBox.Controllers
             var userCount = _dbContext.Users.Count();
             var deviceCount = _dbContext.Devices.Count();
             var activedCount = _dbContext.Devices.Count(device => device.Activation == 1);
-            var onlineCount = _deviceContext.DevicePool.Count();
+            var onlineCount = _deviceContext.DevicePool.Count;
 
             return JsonConvert.SerializeObject(new OverallDto
             {
@@ -255,7 +255,7 @@ namespace NetworkSoundBox.Controllers
 
             list.ForEach(device =>
             {
-                if (_deviceContext.DevicePool.Find(d => d.SN == device.Sn) != null)
+                if (_deviceContext.DevicePool.ContainsKey(device.Sn))
                 {
                     device.IsOnline = true;
                 }
@@ -274,7 +274,7 @@ namespace NetworkSoundBox.Controllers
                 .ToList();
             list.ForEach(device =>
             {
-                if (_deviceContext.DevicePool.Find(d => d.SN == device.Sn) != null)
+                if (_deviceContext.DevicePool.ContainsKey(device.Sn))
                 {
                     device.IsOnline = true;
                 }
@@ -302,7 +302,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_list")]
         public string GetPlayList([FromQuery] string sn)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null) return "Failed! Device is not connected!";
 
@@ -321,8 +321,8 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("delete_audio")]
         public string DeleteAudio([FromQuery] string sn, int index)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
-            
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
+
             if (device == null) return "Failed! Device is not connected!";
 
             if (device.DeleteAudio(index)) return "Success!";
@@ -338,7 +338,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_index")]
         public string PlayIndex([FromQuery] string sn, int index)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null) return "Failed! Device is not connected!";
 
@@ -355,7 +355,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_pause")]
         public string PlayOrPause([FromQuery] string sn, int action)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null)
                 return "Failed! Device is not connected!";
@@ -375,7 +375,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("next_previous")]
         public string NextOrPrevious([FromQuery] string sn, int action)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null)
                 return "Failed! Device is not connected!";
@@ -395,7 +395,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("volumn")]
         public string Volumn([FromQuery] string sn, int volumn)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
             if (device == null)
                 return "Failed! Device is not connected!";
 
@@ -415,7 +415,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("reboot")]
         public string Reboot(string sn)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null)
             {
@@ -428,7 +428,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("restore")]
         public string Restore(string sn)
         {
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
+            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
 
             if (device == null)
             {
@@ -438,75 +438,6 @@ namespace NetworkSoundBox.Controllers
             return device.SendRestore() ? "Success!" : "Failed!";
         }
         #endregion
-
-        [HttpGet("TTS/SN{sn}Text{text}")]
-        public FileResult TTS(string sn, string text)
-        {
-            Console.WriteLine("New TTS Task is required to device[{0}] with {1} words", sn, text.Length);
-            byte[] receiveBuffer = new byte[1024 * 1024 * 10];
-            int contentLength = 0;
-
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://tts.jhy2015.cn/api/BluetoothPlayerTTS/TTS/" + text);
-            var client = _httpClientFactory.CreateClient();
-            var response = client.Send(request);
-
-            if(response.IsSuccessStatusCode)
-            {
-                var responseStream = response.Content.ReadAsStream();
-                contentLength = responseStream.Read(receiveBuffer);
-                ArraySegment<byte> content = new ArraySegment<byte>(receiveBuffer, 0, contentLength);
-
-                DeviceHandler device = null;
-                try
-                {
-                    device = _deviceContext.DevicePool.First(device => device.SN == sn);
-                }
-                catch (Exception ex) 
-                {
-                    Console.WriteLine(ex.Message);
-                }
-                if (device == null)
-                {
-                    return null;
-                    //return "Filed! Device is not connected!";
-                }
-                device.FileQueue.Add(new(content.ToList()));
-                return new FileContentResult(content.ToArray(), "audio/mp3");
-            }
-            return null;
-            //return "Success!";
-        }
-
-        [HttpPost("TransFileList/SN{sn}")]
-        public bool TransFile(string sn, List<IFormFile> files)
-        {
-            Console.WriteLine("Upload {0} files", files.Count);
-
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceContext.DevicePool.First(device => device.SN == sn);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-            if (device == null)
-            {
-                return false;
-            }
-
-            int index = 0;
-            files.ForEach(file =>
-            {
-                index++;
-                Console.WriteLine("File{0} has {1} Kbyte", index, file.Length / 1024);
-                byte[] content = new byte[1024 * 1024 * 10];
-                int contentLength = file.OpenReadStream().Read(content);
-                device.FileQueue.Add(new(new ArraySegment<byte>(content, 0, contentLength).ToList()));
-            });
-            return true;
-        }
 
         [HttpPost("alarms")]
         public string SetAlarms(TimeSettingDto dto)
@@ -518,7 +449,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext.DevicePool.First(d => d.SN == dto.Sn);
+                device = DeviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch(Exception ex)
             {
@@ -541,7 +472,7 @@ namespace NetworkSoundBox.Controllers
                 data.Add((byte)(d + 1));
             });
             data.Add((byte)dto.Audio);
-            if (device.SendTimeSetting(data))
+            if (device.SendCronTask(data))
             {
                 return "Success";
             }
@@ -558,7 +489,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext.DevicePool.First(d => d.SN == dto.Sn);
+                device = DeviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch (Exception ex)
             {
@@ -574,7 +505,7 @@ namespace NetworkSoundBox.Controllers
             data.Add((byte)dto.Volumn);
             data.Add((byte)(dto.Relay ? 0x01: 0x00));
             data.Add((byte)dto.Audio);
-            if (device.SendTimeSettingAfter(data))
+            if (device.SendDelayTask(data))
             {
                 return "Success";
             }
@@ -584,63 +515,64 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        [HttpPost("transfile_cellular")]
-        public IActionResult TransFileCellular(string sn, IFormFile file)
-        {
-            if (file == null)
-            {
-                throw new HttpRequestException("文件为空");
-            }
+        //[HttpPost("transfile_cellular")]
+        //public IActionResult TransFileCellular(string sn, IFormFile file)
+        //{
+        //    if (file == null)
+        //    {
+        //        throw new HttpRequestException("文件为空");
+        //    }
 
-            // 文件大小应小于50M
-            if (file.Length >= 1024 * 1024 * 50)
-            {
-                throw new HttpRequestException("文件过大");
-            }
+        //    // 文件大小应小于50M
+        //    if (file.Length >= 1024 * 1024 * 50)
+        //    {
+        //        throw new HttpRequestException("文件过大");
+        //    }
 
-            // 文件类型应当为MP3
-            //if (file.ContentType != "audio/mpeg")
-            //{
-            //    throw new HttpRequestException("文件格式错误");
-            //}
+        //    // 文件类型应当为MP3
+        //    //if (file.ContentType != "audio/mpeg")
+        //    //{
+        //    //    throw new HttpRequestException("文件格式错误");
+        //    //}
 
-            Console.WriteLine("Upload 1 file");
+        //    Console.WriteLine("Upload 1 file");
 
-            DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(device => device.SN == sn);
-            //if (device == null)
-            //{
-            //    throw new HttpRequestException("设备未连接");
-            //}
+        //    DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
+        //    //if (device == null)
+        //    //{
+        //    //    throw new HttpRequestException("设备未连接");
+        //    //}
 
-            DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
-            string fileToken = Guid.NewGuid().ToString("N")[..8];
-            byte[] data = new byte[file.Length];
-            file.OpenReadStream().Read(data);
-            FileContentResult fileContentResult = new(data, "audio/mp3");
-            _deviceContext.FileList.Add(fileToken, new(dateTimeOffset, fileContentResult));
-            var fileTokenBytes = Encoding.ASCII.GetBytes(fileToken);
-            if (device.ReqFileTrans(fileTokenBytes))
-            {
-                return Ok(fileToken);
-            }
-            else
-            {
-                throw new HttpRequestException("设备未响应");
-            }
-        }
+        //    DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
+        //    string fileToken = Guid.NewGuid().ToString("N")[..8];
+        //    byte[] data = new byte[file.Length];
+        //    file.OpenReadStream().Read(data);
+        //    FileContentResult fileContentResult = new(data, "audio/mp3");
+        //    _deviceContext.FileList.Add(fileToken, new(dateTimeOffset, fileContentResult));
+        //    var fileTokenBytes = Encoding.ASCII.GetBytes(fileToken);
+        //    if (device.ReqFileTrans(fileTokenBytes))
+        //    {
+        //        return Ok(fileToken);
+        //    }
+        //    else
+        //    {
+        //        throw new HttpRequestException("设备未响应");
+        //    }
+        //}
 
-        [HttpGet("downloadfile_cellular")]
-        public IActionResult DownloadFileCellular([FromQuery] string fileToken)
-        {
-            if (_deviceContext.FileList.TryGetValue(fileToken, out KeyValuePair<DateTimeOffset, FileContentResult> filePair))
-            {
-                return filePair.Value;
-            }
-            else
-            {
-                return BadRequest();
-            }
-        }
+        //[HttpGet("downloadfile_cellular")]
+        //public IActionResult DownloadFileCellular([FromQuery] string fileToken)
+        //{
+        //    if (_deviceContext.FileList.TryGetValue(fileToken, out KeyValuePair<DateTimeOffset, FileContentResult> filePair))
+        //    {
+        //        _deviceContext.FileList.Remove(fileToken);
+        //        return filePair.Value;
+        //    }
+        //    else
+        //    {
+        //        return BadRequest();
+        //    }
+        //}
 
         [HttpPost("TransFile/SN{sn}")]
         public string TransFile(string sn, IFormFile file)
@@ -655,7 +587,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = _deviceContext.DevicePool.First(device => device.SN == sn);
+                device = _deviceContext.DevicePool.First(pair => pair.Key == sn).Value;
             }
             catch (Exception ex)
             {

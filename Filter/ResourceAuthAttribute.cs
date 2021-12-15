@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using NetworkSoundBox.Services.Device.Handler;
 using System;
+using Microsoft.AspNetCore.Http;
 
 namespace NetworkSoundBox.Filter
 {
@@ -23,7 +24,7 @@ namespace NetworkSoundBox.Filter
             {
                 try
                 {
-                    var device = _deviceContext.DeviceDict[(string)sn];
+                    var device = _deviceContext.DevicePool[(string)sn];
                     if (device.UserOpenId != context.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value)
                     {
                         throw new Exception();
@@ -34,6 +35,25 @@ namespace NetworkSoundBox.Filter
                     context.Result = new BadRequestObjectResult("无效SN或设备不在线");
                 }
             }
+
+            if (context.ActionArguments.TryGetValue("action", out var action))
+            {
+                if ((int)action != 0 && (int)action != 1) context.Result = new BadRequestObjectResult("非法参数");
+            }
+
+            if (context.ActionArguments.TryGetValue("volumn", out var volumn))
+            {
+                if ((int)volumn < 0 || (int)volumn > 100) context.Result = new BadRequestObjectResult("非法参数");
+            }
+
+            if (context.ActionArguments.TryGetValue("formFile", out var formFile))
+            {
+                IFormFile file = formFile as IFormFile;
+                if (file == null) context.Result = new BadRequestObjectResult("非法文件");
+                else if (file.Length > 1024 * 1024 * 50) context.Result = new BadRequestObjectResult("文件过大");
+                else if (file.ContentType != "audio/mpeg") context.Result = new BadRequestObjectResult("文件格式错误");
+            }
+
             base.OnActionExecuting(context);
         }
     }

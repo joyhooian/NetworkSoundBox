@@ -92,6 +92,7 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                 'cmd': message['cmd'],
                 'data': bytearray()
             })
+            requests.get('http://localhost:5000/api/device_ctrl/download_file?fileToken=' + str(message['data'], 'ascii'))
         # 收到定时命令
         if message['cmd'] == 0x23 or message['cmd'] == 0x24:
             outbox.put({
