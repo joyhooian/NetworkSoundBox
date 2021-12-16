@@ -268,5 +268,24 @@ namespace NetworkSoundBox.Controllers
             _deviceContext.FileList.Remove(fileToken);
             return ret ? Ok() : BadRequest("传输超时");
         }
+
+        [HttpGet("download_file_test")]
+        public async Task<IActionResult> DownloadFileTest([FromQuery] string fileToken)
+        {
+            if (fileToken == "12345678")
+            {
+                if (_deviceContext.FileContentResult_Test == null)
+                {
+                    var text = "测试音频,测试音频,测试音频,测试音频,测试音频,测试音频,测试音频,测试音频";
+                    var speech = await _xunfeiTtsService.GetSpeech(text, "xiaoyan", 50, 50, 50);
+                    byte[] audioContent = new byte[speech.Count];
+                    speech.CopyTo(audioContent, 0);
+                    _deviceContext.FileContentResult_Test = new FileContentResult(audioContent, "audio/mpeg");
+                    return _deviceContext.FileContentResult_Test;
+                }
+                return _deviceContext.FileContentResult_Test;
+            }
+            return BadRequest("参数不正确");
+        }
     }
 }

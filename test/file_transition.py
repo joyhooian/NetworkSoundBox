@@ -23,8 +23,8 @@ def Main():
     sn = '02387448'
     secretKey = 'hengliyuan123'
     apiKey = 'abcdefg'
-    host = '127.0.0.1'
-    # host = '110.40.133.195'
+    # host = '127.0.0.1'
+    host = '110.40.133.195'
     port = 10808
 
     # 连接服务器
@@ -92,7 +92,7 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                 'cmd': message['cmd'],
                 'data': bytearray()
             })
-            requests.get('http://localhost:5000/api/device_ctrl/download_file?fileToken=' + str(message['data'], 'ascii'))
+            requests.get('http://110.40.133.195:5000/api/device_ctrl/download_file?fileToken=' + str(message['data'], 'ascii'))
         # 收到定时命令
         if message['cmd'] == 0x23 or message['cmd'] == 0x24:
             outbox.put({

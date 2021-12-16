@@ -11,5 +11,6 @@ namespace NetworkSoundBox.Services.Device.Handler
     {
         public Dictionary<string, DeviceHandler> DevicePool { get; }
         public Dictionary<string, KeyValuePair<Semaphore, FileContentResult>> FileList { get; }
+        public FileContentResult FileContentResult_Test { get; set; }
     }
 }
