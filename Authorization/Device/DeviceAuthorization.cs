@@ -27,12 +27,10 @@ namespace NetworkSoundBox.Authorization.Device
         {
             // 初步判断长度是否足够
             if (requestMessage.Count < 9) return false;
-
-            if (!Enum.IsDefined(typeof(DeviceType), (int)requestMessage[^1]))
-                return false;
+            if (!Enum.IsDefined(typeof(DeviceType), (int)requestMessage[^1])) return false;
 
             DeviceType deviceType = (DeviceType)requestMessage[^1];
-
+            // 如果是4G设备，暂时不鉴权
             if (deviceType == DeviceType.Cellular_Test) return true;
 
             // 获取当前时区的整10时间戳

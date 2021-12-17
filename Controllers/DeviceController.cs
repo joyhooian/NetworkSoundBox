@@ -1,18 +1,19 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using NetworkSoundBox.Services.Device.Handler;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using NetworkSoundBox.Filter;
 using System.Net.Http;
-using NetworkSoundBox.Controllers.DTO;
-using Microsoft.AspNetCore.Http;
-using NetworkSoundBox.Services.Message;
 using System.Text;
 using System.Threading;
-using NetworkSoundBox.Services.TextToSpeech;
 using System.Threading.Tasks;
+using System.Web;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Filter;
+using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.Message;
+using NetworkSoundBox.Services.TextToSpeech;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -230,25 +231,16 @@ namespace NetworkSoundBox.Controllers
                 return ret ? Ok() : BadRequest("传输超时");
             }
         }
-
+        
         /// <summary>
-        /// 设备调用，下载文件
+        /// 上传TTS音频到设备
         /// </summary>
-        [HttpGet("download_file")]
-        public IActionResult Download_File([FromQuery] string fileToken)
-        {
-            if (_deviceContext.FileList.TryGetValue(fileToken, out var filePair))
-            {
-                FileContentResult file = new(filePair.Value.FileContents, "audio/mp3");
-                filePair.Key.Release();
-                return file;
-            }
-            else
-            {
-                return BadRequest("非法参数");
-            }
-        }
-
+        /// <param name="sn"></param>
+        /// <param name="text"></param>
+        /// <param name="vcn"></param>
+        /// <param name="speed"></param>
+        /// <param name="volumn"></param>
+        /// <returns></returns>
         [Authorize]
         [HttpPost("upload_tts")]
         public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN, int speed = 50, int volumn = 50)
@@ -269,6 +261,29 @@ namespace NetworkSoundBox.Controllers
             return ret ? Ok() : BadRequest("传输超时");
         }
 
+        /// <summary>
+        /// 设备调用，下载文件
+        /// </summary>
+        [HttpGet("download_file")]
+        public IActionResult Download_File([FromQuery] string fileToken)
+        {
+            if (_deviceContext.FileList.TryGetValue(fileToken, out var filePair))
+            {
+                FileContentResult file = new(filePair.Value.FileContents, "audio/mp3");
+                filePair.Key.Release();
+                return file;
+            }
+            else
+            {
+                return BadRequest("非法参数");
+            }
+        }
+
+        /// <summary>
+        /// 测试文件下载
+        /// </summary>
+        /// <param name="fileToken"></param>
+        /// <returns></returns>
         [HttpGet("download_file_test")]
         public async Task<IActionResult> DownloadFileTest([FromQuery] string fileToken)
         {
@@ -286,6 +301,39 @@ namespace NetworkSoundBox.Controllers
                 return _deviceContext.FileContentResult_Test;
             }
             return BadRequest("参数不正确");
+        }
+
+        /// <summary>
+        /// 流式传输文件
+        /// </summary>
+        /// <param name="fileToken"></param>
+        /// <returns></returns>
+        [HttpGet("download_file_stream")]
+        public async Task<IActionResult> DownloadFileStream([FromQuery] string fileToken)
+        {
+            if (_deviceContext.FileList.TryGetValue(fileToken, out var pair))
+            {
+                var fileContent = pair.Value.FileContents;
+                var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds().ToString();
+                var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(timeStamp)}.mp3";
+                Response.ContentType = "audio/mp3";
+                Response.Headers.Add("Content-Disposition", new string[] {contentDisposition});
+                Response.ContentLength = fileContent.Length;
+                using (Response.Body)
+                {
+                    int hasSent = 0;
+                    while (hasSent < fileContent.Length)
+                    {
+                        if (HttpContext.RequestAborted.IsCancellationRequested) break;
+
+                        await Response.Body.WriteAsync(new ReadOnlyMemory<byte>(fileContent, hasSent, 1024));
+                        hasSent += 1024;
+                    }
+                    Response.Body.Flush();
+                    return new EmptyResult();
+                }
+            }
+            return BadRequest("参数错误");
         }
     }
 }

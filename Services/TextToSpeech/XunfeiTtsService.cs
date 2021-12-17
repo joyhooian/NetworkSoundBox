@@ -22,25 +22,25 @@ namespace NetworkSoundBox.Services.TextToSpeech
 
         public async Task<List<byte>> GetSpeech(string text, string vcn = "xiaoyan", int speed = 50, int volume = 50, int pitch = 50)
         {
+            #region Api鉴权
             string hostUrl = _configuration["Xunfei:HostUrl"];
             string now = DateTime.Now.ToString("R");
             string host = _configuration["Xunfei:Host"];
-
+            #endregion
             var cancallation = new CancellationTokenSource();
             var recvBuffer = new byte[1024 * 20];
             var audioBuffer = new byte[1024 * 1024];
             int audioBufferOffset = 0;
-            ResponceDto responce;
 
             string wssUrl = $"{hostUrl}?authorization={GetAuthStr(now)}&date={now}&host={host}";
             var webSocketClient = new ClientWebSocket();
             await webSocketClient.ConnectAsync(new Uri(wssUrl), cancallation.Token);
             await webSocketClient.SendAsync(GetFrame(text, vcn, speed, volume, pitch), WebSocketMessageType.Text, true, cancallation.Token);
+            ResponceDto responce;
             do
             {
                 await webSocketClient.ReceiveAsync(recvBuffer, cancallation.Token);
-                var test = Encoding.UTF8.GetString(recvBuffer);
-                responce = JsonConvert.DeserializeObject<ResponceDto>(test);
+                responce = JsonConvert.DeserializeObject<ResponceDto>(Encoding.UTF8.GetString(recvBuffer));
                 if (responce.Code != 0)
                 {
                     continue;
@@ -80,7 +80,7 @@ namespace NetworkSoundBox.Services.TextToSpeech
             string textFormated;
             if (vcn == "xiaoyan")
             {
-                textFormated = "<break time=\"1000ms\"/>" + text + "<break time=\"1500ms\"/>";
+                textFormated = $"<break time=\"1000ms\"/>{text}<break time=\"1500ms\"/>";
             }
             else
             {
