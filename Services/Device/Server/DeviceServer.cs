@@ -13,12 +13,12 @@ namespace NetworkSoundBox.Services.Device.Server
 {
     public class ServerService : BackgroundService
     {
-        private readonly IHubContext<NotificationHub> _hubContext;
+        private readonly INotificationContext _notificationContext;
         private readonly IDeviceAuthorization _deviceAuthorization;
 
-        public ServerService(IHubContext<NotificationHub> hubContext, IDeviceAuthorization deviceAuthorization)
+        public ServerService(INotificationContext notificationContext, IDeviceAuthorization deviceAuthorization)
         {
-            _hubContext = hubContext;
+            _notificationContext = notificationContext;
             _deviceAuthorization = deviceAuthorization;
         }
 
@@ -31,7 +31,7 @@ namespace NetworkSoundBox.Services.Device.Server
             while (true)
             {
                 Console.WriteLine("[Test] Waiting for a connection...");
-                new DeviceHandler(server.AcceptSocket(), _hubContext, _deviceAuthorization);
+                new DeviceHandler(server.AcceptSocket(), _notificationContext, _deviceAuthorization);
             }
         }
     }

@@ -17,7 +17,7 @@ namespace NetworkSoundBox.Authorization.Jwt
 {
     public class JwtAppService : IJwtAppService
     {
-        private readonly static ISet<JwtAuthorizationDto> _tokens = new HashSet<JwtAuthorizationDto>();
+        private readonly static Dictionary<string, JwtAuthorizationDto> _tokensDict = new();
         private readonly IConfiguration _configuration;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -29,12 +29,22 @@ namespace NetworkSoundBox.Authorization.Jwt
 
         public int GetUserId(string token)
         {
-            var user = _tokens.FirstOrDefault(jwt => jwt.Token == token);
-            if (user != null)
+            if (token == null || token.Equals(string.Empty)) return 0;
+            if (_tokensDict.TryGetValue(token, out JwtAuthorizationDto jwtAuthorizationDto))
             {
-                return user.UserId;
+                return jwtAuthorizationDto.UserId;
             }
             return 0;
+        }
+
+        public string GetOpenId(string token)
+        {
+            if (token == null || token.Equals(string.Empty)) return string.Empty;
+            if (_tokensDict.TryGetValue(token,out JwtAuthorizationDto jwtAuthorizationDto))
+            {
+                return jwtAuthorizationDto.OpenId;
+            }
+            return string.Empty;
         }
 
         /// <summary>
@@ -44,8 +54,9 @@ namespace NetworkSoundBox.Authorization.Jwt
         /// <returns></returns>
         public JwtAuthorizationDto Create(UserDto userDto)
         {
-            JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
-            SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:SecurityKey"]));
+            #region 生成token
+            JwtSecurityTokenHandler tokenHandler = new();
+            SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_configuration["Jwt:SecurityKey"]));
 
             DateTime authTime = DateTime.UtcNow;
             DateTime expiresAt = authTime.AddMinutes(Convert.ToDouble(_configuration["Jwt:ExpireMinutes"]));
@@ -72,17 +83,16 @@ namespace NetworkSoundBox.Authorization.Jwt
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
-
+            #endregion
             var jwt = new JwtAuthorizationDto
             {
                 UserId = userDto.Id,
                 Token = tokenHandler.WriteToken(token),
                 Auths = new DateTimeOffset(authTime).ToUnixTimeSeconds(),
-                Success = true
+                Success = true,
+                OpenId = userDto.OpenId
             };
-
-            _tokens.Add(jwt);
-
+            _tokensDict.Add(jwt.Token, jwt);
             return jwt;
         }
 
@@ -92,7 +102,7 @@ namespace NetworkSoundBox.Authorization.Jwt
         /// <param name="token">Token</param>
         /// <returns></returns>
         public void Deactive(string token)
-        => _tokens.Remove(GetExistence(token));
+        => _tokensDict.Remove(token);
 
         /// <summary>
         /// 停用当前Token
@@ -150,6 +160,6 @@ namespace NetworkSoundBox.Authorization.Jwt
         }
 
         private JwtAuthorizationDto GetExistence(string token)
-        => _tokens.FirstOrDefault(jwt => jwt.Token == token);
+        => _tokensDict[token];
     }
 }

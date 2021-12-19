@@ -1,30 +1,29 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
 using System;
-using Microsoft.EntityFrameworkCore;
-using NetworkSoundBox.Hubs;
-using NetworkSoundBox.Authorization.Policy;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using NetworkSoundBox.Authorization.WxAuthorization.Login;
-using NetworkSoundBox.Services.TextToSpeech;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using NetworkSoundBox.Entities;
-using NetworkSoundBox.AutoMap;
+using Microsoft.OpenApi.Models;
 using NetworkSoundBox.Authorization.Device;
+using NetworkSoundBox.Authorization.Jwt;
+using NetworkSoundBox.Authorization.Policy;
+using NetworkSoundBox.Authorization.WxAuthorization.AccessToken;
+using NetworkSoundBox.Authorization.WxAuthorization.Login;
+using NetworkSoundBox.Authorization.WxAuthorization.QRCode;
+using NetworkSoundBox.AutoMap;
+using NetworkSoundBox.Entities;
+using NetworkSoundBox.Filter;
+using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Device.Server;
-using NetworkSoundBox.Authorization.Jwt;
-using NetworkSoundBox.Authorization.WxAuthorization.QRCode;
-using NetworkSoundBox.Authorization.WxAuthorization.AccessToken;
-using NetworkSoundBox.Filter;
+using NetworkSoundBox.Services.TextToSpeech;
 
 namespace NetworkSoundBox
 {
@@ -41,43 +40,61 @@ namespace NetworkSoundBox
         public void ConfigureServices(IServiceCollection services)
         {
 
+            #region ÃÌº”Jwtº¯»®≈‰÷√
+            #region Jwt≈‰÷√◊÷∑˚¥Æ
             string issuer = Configuration["Jwt:Issuer"];
             string audience = Configuration["Jwt:Audience"];
             string expire = Configuration["Jwt:ExpireMinutes"];
             TimeSpan expiration = TimeSpan.FromMinutes(Convert.ToDouble(expire));
-            SecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:SecurityKey"]));
-
+            SecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:SecurityKey"])); 
+            #endregion
             services.AddAuthorization(options =>
-            {
-                options.AddPolicy("Permission",
-                    policy => policy.Requirements.Add(new PolicyRequirement()));
-            }).AddAuthentication(s =>
-            {
-                s.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                s.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-                s.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(s =>
-            {
-                s.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidIssuer = issuer,
-                    ValidAudience = audience,
-                    IssuerSigningKey = key,
-                    ClockSkew = expiration,
-                    ValidateLifetime = true
-                };
-                s.Events = new JwtBearerEvents
+                    options.AddPolicy("Permission",
+                        policy => policy.Requirements.Add(new PolicyRequirement()));
+                })
+                .AddAuthentication(options =>
                 {
-                    OnAuthenticationFailed = context =>
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
                     {
-                        if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                        ValidIssuer = issuer,
+                        ValidAudience = audience,
+                        IssuerSigningKey = key,
+                        ClockSkew = expiration,
+                        ValidateLifetime = true
+                    };
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnAuthenticationFailed = context =>
                         {
-                            context.Response.Headers.Add("Token-Expired", "true");
-                        }
-                        return Task.CompletedTask;
-                    }
-                };
-            });
+                            if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                            {
+                                context.Response.Headers.Add("Token-Expired", "true");
+                            }
+                            return Task.CompletedTask;
+                        },
+                        #region ≈‰÷√SignalRº¯»®
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) &&
+                                path.StartsWithSegments("/NotificationHub"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
+                        } 
+                        #endregion
+                    };
+                }); 
+            #endregion
             services.AddTransient<IJwtAppService, JwtAppService>();
             services.AddSingleton<IAuthorizationHandler, PolicyHandler>();
             services.AddSingleton<IWxAccessService, WxAccessService>();
@@ -85,6 +102,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IDeviceContext, DeviceContext>();
             services.AddSingleton<IWxLoginService, WxLoginService>();
             services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
+            services.AddSingleton<INotificationContext, NotificationContext>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
             services.AddScoped<ResourceAuthAttribute>();
 
@@ -97,23 +115,24 @@ namespace NetworkSoundBox
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddCors(options =>
             {
-                options.AddPolicy("SignalRCors", policy => policy.SetIsOriginAllowed(_ => true)
+                options.AddPolicy("DefaultCors", policy => policy.SetIsOriginAllowed(_ => true)
                                                                  .AllowAnyHeader()
                                                                  .AllowCredentials()
                                                                  .WithMethods("GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"));
             });
+            #region ÃÌº”Swagger ”Õº
             services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
-                    Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-                    Name = "Authorization",//Jwt default param name
+                    c.SwaggerDoc("v1", new OpenApiInfo { Title = "NetworkSoundBox", Version = "v1" });
+                    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                    {
+                        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+                        Name = "Authorization",//Jwt default param name
                     In = ParameterLocation.Header,//Jwt store address
                     Type = SecuritySchemeType.ApiKey//Security scheme type
                 });
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
+                    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                    {
                     {
                         new OpenApiSecurityScheme
                         {
@@ -128,9 +147,10 @@ namespace NetworkSoundBox
                         },
                         new List<string>()
                     }
-                });
-            });
-
+                    });
+                }); 
+            #endregion
+            #region ÃÌº”NewtonJson–Ú¡–ªØ≈‰÷√
             Newtonsoft.Json.JsonConvert.DefaultSettings = new Func<Newtonsoft.Json.JsonSerializerSettings>(() =>
             {
                 return new Newtonsoft.Json.JsonSerializerSettings
@@ -141,20 +161,18 @@ namespace NetworkSoundBox
                     ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
                 };
             });
+            #endregion
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "NetworkSoundBox v1"));
-            }
+            app.UseDeveloperExceptionPage();
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "NetworkSoundBox v1"));
 
             app.UseRouting();
-            app.UseCors("SignalRCors");
+            app.UseCors("DefaultCors");
 
 
             app.UseAuthentication();
@@ -163,8 +181,8 @@ namespace NetworkSoundBox
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllers().RequireCors("SignalRCors");
-                endpoints.MapHub<NotificationHub>("/NotificationHub").RequireCors("SignalRCors");
+                endpoints.MapControllers().RequireCors("DefaultCors");
+                endpoints.MapHub<NotificationHub>("/NotificationHub").RequireCors("DefaultCors");
             });
         }
     }

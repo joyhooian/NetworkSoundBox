@@ -20,8 +20,8 @@ namespace NetworkSoundBox.Services.Device.Handler
 {
     public class DeviceHandler
     {
-        private readonly IHubContext<NotificationHub> _notificationHub;
         private readonly IDeviceAuthorization _deviceAuthorization;
+        private readonly INotificationContext _notificationContext;
 
         public const int MAX_RETRY_TIMES = 3;
         public const int DEFAULT_TIMEOUT_LONG = 15 * 1000;
@@ -50,10 +50,10 @@ namespace NetworkSoundBox.Services.Device.Handler
         private RetryManager heartbeat;
 
         public DeviceHandler(Socket socket,
-                             IHubContext<NotificationHub> notificationHub,
+                             INotificationContext notificationContext,
                              IDeviceAuthorization deviceAuthorization)
         {
-            _notificationHub = notificationHub;
+            _notificationContext = notificationContext;
             _deviceAuthorization = deviceAuthorization;
 
             Socket = socket;
@@ -99,9 +99,9 @@ namespace NetworkSoundBox.Services.Device.Handler
                     Socket.Close();
                     Socket.Dispose();
                     var logoutTime = DateTime.Now;
-                    if (DeviceContext.DevicePool.ContainsKey(SN))
+                    if (DeviceContext._devicePool.ContainsKey(SN))
                     {
-                        DeviceContext.DevicePool.Remove(SN);
+                        DeviceContext._devicePool.Remove(SN);
                         _handleFilesTask.Wait();
                         _handleOutboxTask.Wait();
                         _handleInboxTask.Wait();
@@ -113,13 +113,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                             dbContext.Update(deviceEntity);
                             dbContext.SaveChanges();
                         }
-                        await _notificationHub.Clients.All.SendAsync(
-                            NotificationHub.NOTI_LOGOUT,
-                            JsonConvert.SerializeObject(new ConnectionNotifyDto
-                            {
-                                Sn = SN,
-                                LastOnline = logoutTime
-                            }));
+                        await _notificationContext.SendDeviceOffline(UserOpenId, SN);
                     }
                     return;
                 }
@@ -218,23 +212,17 @@ namespace NetworkSoundBox.Services.Device.Handler
                                     deviceEntity.DeviceType = Enum.GetName(Type);
                                     dbContext.SaveChanges();
                                 }
-                                await _notificationHub.Clients.All.SendAsync(
-                                    NotificationHub.NOTI_LOGIN,
-                                    JsonConvert.SerializeObject(new ConnectionNotifyDto
-                                    {
-                                        Sn = SN,
-                                        DeviceType = Enum.GetName(Type)
-                            }));
+                                await _notificationContext.SendDeviceOnline(UserOpenId, SN);
                             }
-                            DeviceHandler device = DeviceContext.DevicePool.FirstOrDefault(pair => pair.Key == SN).Value;
+                            DeviceHandler device = DeviceContext._devicePool.FirstOrDefault(pair => pair.Key == SN).Value;
                             if (device != null)
                             {
                                 device.CTS.Cancel();
-                                DeviceContext.DevicePool.Remove(SN);
+                                DeviceContext._devicePool.Remove(SN);
                                 Console.WriteLine("Device with SN \"{0}\" has existed, renew device", SN);
                             }
-                            DeviceContext.DevicePool.Add(SN, this);
-                            Console.WriteLine($"Device with SN \"{SN}\" has loged in, socket @{IPAddress}:{Port}. Now we have got {DeviceContext.DevicePool.Count} devices.");
+                            DeviceContext._devicePool.Add(SN, this);
+                            Console.WriteLine($"Device with SN \"{SN}\" has loged in, socket @{IPAddress}:{Port}. Now we have got {DeviceContext._devicePool.Count} devices.");
                             _outboxQueue.TryAdd(new Outbound(Command.LOGIN, null, _deviceAuthorization.GetAuthorization(SN)));
                             break;
                         case Command.HEARTBEAT:
@@ -430,7 +418,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                     {
                         pkgIdx++;
                         var pkg = file.Packages.Dequeue();
-                        await _notificationHub.Clients.All.SendAsync("FileProgress", (100.0 * pkgIdx / file.PackageCount).ToString());
+                        await _notificationContext.SendDownloadProgress(UserOpenId, (float)(100.0 * pkgIdx / file.PackageCount));
                         retry.Reset();
                         while (retry.Set())
                         {

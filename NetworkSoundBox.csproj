@@ -2,7 +2,19 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <Optimize>False</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Uploaded\**" />
+    <Content Remove="Uploaded\**" />
+    <EmbeddedResource Remove="Uploaded\**" />
+    <None Remove="Uploaded\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="10.1.1" />
