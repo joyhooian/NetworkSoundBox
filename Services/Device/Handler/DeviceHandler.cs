@@ -479,7 +479,6 @@ namespace NetworkSoundBox.Services.Device.Handler
                             break;
                         }
                     }
-
                     retry.Reset();
                     //发送 [文件全部更新完毕] 命令
                     if (_fileQueue.Count == 0)

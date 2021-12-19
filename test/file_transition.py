@@ -1,12 +1,9 @@
-from array import array
 from socket import *
 import time, requests
 from typing import ByteString
 import threading
-from multiprocessing import Lock
 import hmac
 import queue
-import datetime
 
 ERROR = 'error'
 
@@ -19,30 +16,50 @@ client = socket(AF_INET, SOCK_STREAM)
 
 def Main():
     # 基本设置
-    # sn = '0065a0fa'
-    sn = '02387448'
-    secretKey = 'hengliyuan123'
+    # region 参数设置
     apiKey = 'abcdefg'
-    host = '127.0.0.1'
-    # host = '110.40.133.195'
+    secretKey = 'hengliyuan123'
+    sn = ''
+    host = ''
     port = 10808
+    deviceCode = 0x00
+    # endregion
+    
+    # target = 'server'
+    target = 'local'
+    deviceType = '4G'
+    # deviceType = 'WiFi'
+    # sn = '0065a0fa'
 
+    # region 环境变量设置
+    if target == 'local':
+        host = '127.0.0.1'
+    else:
+        host = '110.40.133.195'
+    
+    if deviceType == '4G':
+        sn = '02387448'
+        deviceCode = 0x11
+    else:
+        sn = '00000001'
+        deviceCode = 0x01
+    #endregion
+    
     # 连接服务器
     client.connect((host, port))
-
     poll = []
-    poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey)))
+    poll.append(threading.Thread(target=HandleSocket, args=(sn,secretKey, deviceCode)))
     poll.append(threading.Thread(target=HandleOutbox, args=(isDownloading,)))
-    poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,sn, apiKey)))
+    poll.append(threading.Thread(target=HandleInbox, args=(isDownloading,sn, apiKey, host)))
     poll.append(threading.Thread(target=HandleFile, args=(isDownloading,))) 
     poll.append(threading.Thread(target=HandleHeartbeat, args=(isDownloading,)))
     for thread in poll:
         thread.start()
 
 # 登陆并接受消息
-def HandleSocket(sn: str, secretKey: str):
+def HandleSocket(sn: str, secretKey: str, deviceCode: int):
     # 计算登陆Token
-    auth = GetAuthorization(sn, secretKey)
+    auth = GetAuthorization(sn, secretKey, deviceCode)
     # 发送登陆命令
     client.send(PackSendBuffer(0x01, auth), 0)
     while True:
@@ -55,24 +72,26 @@ def HandleSocket(sn: str, secretKey: str):
         inbox.put(res)
 
 # 分发接收到的消息
-def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
+def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str, host: str):
     while True:
         message = inbox.get()
-        # 收到登陆回复
+        # region 收到登陆回复
         if message['cmd'] == 0x01:
             if (message['data'].decode('ascii') != Authorize(snStr, apiKeyStr)):
                 print('服务器校验失败')
                 client.close()
             print('登陆成功')
 
-        # 收到下载文件命令
+        # endregion
+        # region 收到下载文件命令
         if message['cmd'] == 0xA0:
             fileQueue.put({
                 'cmd': message['cmd'], 
                 'fileIdx': int(message['data'][0]),
                 'pkgCnt': int.from_bytes(message['data'][1:3], 'big', signed=False)
             })
-        # 收到文件分包
+        # endregion
+        # region 收到文件分包
         if message['cmd'] == 0xA1:
             fileQueue.put({
                 'cmd': message['cmd'],
@@ -80,28 +99,32 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                 'data': message['data'][2:257],
                 'crc': message['data'][257]
             })
-        # 收到文件结束命令
+        # endregion
+        # region 收到文件结束命令
         if message['cmd'] == 0xA3:
             fileQueue.put({
                 'cmd': message['cmd'],
                 'fileIdx': int(message['data'][1])
             })
-        # 收到4G文件下载通知
+        # endregion
+        # region 收到4G文件下载通知
         if message['cmd'] == 0xA4:
             print(str(message['data'], 'ascii'))
             outbox.put({
                 'cmd': message['cmd'],
                 'data': bytearray()
             })
-            requests.get('http://127.0.0.1:5000/api/device_ctrl/download_file_stream?fileToken=' + str(message['data'], 'ascii'))
-        # 收到定时命令
+            requests.get('http://' + host + ':5000/api/device_ctrl/download_file_stream?fileToken=' + str(message['data'], 'ascii'))
+        # endregion
+        # region 收到定时命令
         if message['cmd'] == 0x23 or message['cmd'] == 0x24:
             outbox.put({
                 'cmd': message['cmd'],
                 'data': bytearray()
             })
             print(message['data'])
-        # 收到音频控制命令
+        # endregion
+        # region 收到音频控制命令
         if 0xF0 <= message['cmd'] and message['cmd'] <= 0xF9:
             if message['cmd'] == 0xF7:
                 index = message['data'][0] << 8 | message['data'][1]
@@ -137,13 +160,14 @@ def HandleInbox(isDownloading: bool, snStr: str, apiKeyStr: str):
                     'cmd': message['cmd'],
                     'data': bytearray()
             })
-
-        # 收到设备控制命令
+        # endregion
+        # region 收到设备控制命令
         if 0x10 <= message['cmd'] and message['cmd'] <= 0x11:
             outbox.put({
                 'cmd': message['cmd'],
                 'data': bytearray()
             })
+        # endregion
 
 # 发送消息
 def HandleOutbox(isDownloading: bool):
@@ -232,6 +256,7 @@ def HandleFile(isDownloading: bool):
                 'cmd': 0xA3,
                 'data': fileIndex.to_bytes(2, 'big', signed=False)
             })
+
 # 校验登陆返回消息
 def Authorize(snStr: str, apiKeyStr: str):
     # 获取时间戳
@@ -243,7 +268,6 @@ def Authorize(snStr: str, apiKeyStr: str):
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
     return keyStr
-
 
 # 组装发送Buffer
 def PackSendBuffer(cmd, data: bytearray):
@@ -259,15 +283,17 @@ def PackSendBuffer(cmd, data: bytearray):
     return sendBuf
 
 # 计算登陆Token
-def GetAuthorization(snStr: str, secretStr: str):
+def GetAuthorization(snStr: str, secretStr: str, deviceCode: int):
     # 第一次加密
     keyStr = hmac.new(secretStr.encode('ascii'), snStr.encode('ascii'), digestmod='MD5').hexdigest()
 
     # 获取当前时区整十秒时间戳
     timeStamp = int(time.time())
     timeStamp += (0 if timeStamp % 10 < 5 else 10) - timeStamp % 10
-    timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
-    # timeStampStr = str(timeStamp)
+    if deviceCode == 0x11:
+        timeStampStr = time.strftime("%y/%m/%d, %X", time.localtime(timeStamp))
+    else:
+        timeStampStr = str(timeStamp)
 
     # 第二次加密
     keyStr = hmac.new(keyStr.encode('ascii'), timeStampStr.encode('ascii'), digestmod='MD5').hexdigest()
@@ -276,7 +302,7 @@ def GetAuthorization(snStr: str, secretStr: str):
     keyBuf = bytearray()
     keyBuf += bytearray(snStr.encode('ascii'))
     keyBuf += bytearray(keyStr.encode('ascii'))
-    keyBuf += bytearray([0x11])
+    keyBuf += bytearray([deviceCode])
 
     return keyBuf
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
@@ -238,7 +239,6 @@ namespace NetworkSoundBox.Controllers
                 .Where(device => device.UserId == id)
                 .Select(device => _mapper.Map<Device, DeviceCustomerDto>(device))
                 .ToList();
-
             list.ForEach(device =>
             {
                 if (_deviceContext.DevicePool.ContainsKey(device.Sn))
@@ -246,8 +246,21 @@ namespace NetworkSoundBox.Controllers
                     device.IsOnline = true;
                 }
             });
-
             return JsonConvert.SerializeObject(list);
+        }
+
+        [Authorize]
+        [HttpPost("is_online")]
+        public IActionResult GetDeviceOnlineStatus([FromQuery] string sn)
+        {
+            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(openId)) return BadRequest("没有权限");
+            if (_deviceContext.DevicePool.TryGetValue(sn, out DeviceHandler device))
+            {
+                if (device.UserOpenId != openId) return BadRequest("没有权限");
+                return Ok(true);
+            }
+            return Ok(false);
         }
 
         [Authorize(Roles = "admin")]
@@ -279,7 +292,7 @@ namespace NetworkSoundBox.Controllers
         }
 
         #region 播放控制
-
+        [Obsolete]
         /// <summary>
         /// 获取播放列表
         /// </summary>
@@ -298,6 +311,7 @@ namespace NetworkSoundBox.Controllers
             return ret.ToString();
         }
 
+        [Obsolete]
         /// <summary>
         /// 删除指定音频
         /// </summary>
@@ -315,6 +329,7 @@ namespace NetworkSoundBox.Controllers
             return "Failed!";
         }
         
+        [Obsolete]
         /// <summary>
         /// 播放指定序号的音频
         /// </summary>
@@ -332,6 +347,7 @@ namespace NetworkSoundBox.Controllers
             return "Failed!";
         }
 
+        [Obsolete]
         /// <summary>
         /// 播放或暂停
         /// </summary>
@@ -352,6 +368,7 @@ namespace NetworkSoundBox.Controllers
             return device.SendPlayOrPause(action) ? "Success" : "Failed";
         }
 
+        [Obsolete]
         /// <summary>
         /// 上一首或下一首
         /// </summary>
@@ -372,6 +389,7 @@ namespace NetworkSoundBox.Controllers
             return device.SendNextOrPrevious(action) ? "Success" : "Failed";
         }
 
+        [Obsolete]
         /// <summary>
         /// 设备音量
         /// </summary>
@@ -393,6 +411,7 @@ namespace NetworkSoundBox.Controllers
         #endregion
 
         #region 设备控制
+        [Obsolete]
         /// <summary>
         /// 设备重启
         /// </summary>
@@ -411,6 +430,7 @@ namespace NetworkSoundBox.Controllers
             return device.SendReboot() ? "Success!" : "Failed";
         }
 
+        [Obsolete]
         [HttpPost("restore")]
         public string Restore(string sn)
         {
@@ -425,6 +445,7 @@ namespace NetworkSoundBox.Controllers
         }
         #endregion
 
+        [Obsolete]
         [HttpPost("alarms")]
         public string SetAlarms(TimeSettingDto dto)
         {
@@ -465,6 +486,7 @@ namespace NetworkSoundBox.Controllers
             return "Fail";
         }
 
+        [Obsolete]
         [HttpPost("alarms_timeAfter")]
         public string SetAlarmsAfter([FromBody] TimeSettingAfterDto dto)
         {
@@ -501,69 +523,11 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        //[HttpPost("transfile_cellular")]
-        //public IActionResult TransFileCellular(string sn, IFormFile file)
-        //{
-        //    if (file == null)
-        //    {
-        //        throw new HttpRequestException("文件为空");
-        //    }
-
-        //    // 文件大小应小于50M
-        //    if (file.Length >= 1024 * 1024 * 50)
-        //    {
-        //        throw new HttpRequestException("文件过大");
-        //    }
-
-        //    // 文件类型应当为MP3
-        //    //if (file.ContentType != "audio/mpeg")
-        //    //{
-        //    //    throw new HttpRequestException("文件格式错误");
-        //    //}
-
-        //    Console.WriteLine("Upload 1 file");
-
-        //    DeviceHandler device = _deviceContext.DevicePool.FirstOrDefault(pair => pair.Key == sn).Value;
-        //    //if (device == null)
-        //    //{
-        //    //    throw new HttpRequestException("设备未连接");
-        //    //}
-
-        //    DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
-        //    string fileToken = Guid.NewGuid().ToString("N")[..8];
-        //    byte[] data = new byte[file.Length];
-        //    file.OpenReadStream().Read(data);
-        //    FileContentResult fileContentResult = new(data, "audio/mp3");
-        //    _deviceContext.FileList.Add(fileToken, new(dateTimeOffset, fileContentResult));
-        //    var fileTokenBytes = Encoding.ASCII.GetBytes(fileToken);
-        //    if (device.ReqFileTrans(fileTokenBytes))
-        //    {
-        //        return Ok(fileToken);
-        //    }
-        //    else
-        //    {
-        //        throw new HttpRequestException("设备未响应");
-        //    }
-        //}
-
-        //[HttpGet("downloadfile_cellular")]
-        //public IActionResult DownloadFileCellular([FromQuery] string fileToken)
-        //{
-        //    if (_deviceContext.FileList.TryGetValue(fileToken, out KeyValuePair<DateTimeOffset, FileContentResult> filePair))
-        //    {
-        //        _deviceContext.FileList.Remove(fileToken);
-        //        return filePair.Value;
-        //    }
-        //    else
-        //    {
-        //        return BadRequest();
-        //    }
-        //}
-
+        [Obsolete]
         [HttpPost("TransFile/SN{sn}")]
-        public string TransFile(string sn, IFormFile file)
+        public string TransFile(string sn, IFormFile formFile)
         {
-            if (file == null)
+            if (formFile == null)
             {
                 return JsonConvert.SerializeObject(new FileResultDto("fail", "Empty of file content."));
             }
@@ -584,9 +548,9 @@ namespace NetworkSoundBox.Controllers
                 return JsonConvert.SerializeObject(new FileResultDto("fail", "Device is disconnected."));
             }
 
-            Console.WriteLine("File has {0} Kbyte", file.Length / 1024);
+            Console.WriteLine("File has {0} Kbyte", formFile.Length / 1024);
             byte[] content = new byte[1024 * 1024 * 10];
-            int contentLength = file.OpenReadStream().Read(content);
+            int contentLength = formFile.OpenReadStream().Read(content);
             var fileUploaded = new File(new ArraySegment<byte>(content, 0, contentLength).ToList());
             device.FileQueue.Add(fileUploaded);
             fileUploaded.Semaphore.WaitOne();

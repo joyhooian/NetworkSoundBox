@@ -228,17 +228,20 @@ namespace NetworkSoundBox.Controllers
             binaryWriter.Close();
             fileStream.Close();
 
-
             var device = _deviceContext.DevicePool[sn];
+            // WiFi 设备传输
             if (device.Type == DeviceType.WiFi_Test)
             {
                 var fileUploadHandle = new Services.Message.File(content.ToList());
                 device.FileQueue.Add(fileUploadHandle);
+                content = null;
                 fileUploadHandle.Semaphore.WaitOne();
                 return fileUploadHandle.FileStatus == FileStatus.Success ? Ok() : BadRequest("文件传输失败");
             }
+            // 4G 设备传输
             else
             {
+                content = null;
                 AudioTransferDto dto = new()
                 {
                     Sn = sn,
@@ -266,20 +269,48 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("upload_tts")]
         public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN, int speed = 50, int volumn = 50)
         {
-            var device = _deviceContext.DevicePool[sn];
+            // 读取文件到内存
             var speech = await _xunfeiTtsService.GetSpeech(text, vcn.ToString().ToLower(), speed, volumn, 50);
-            byte[] audioContent = new byte[speech.Count];
-            speech.CopyTo(audioContent, 0);
+            byte[] speechContent = new byte[speech.Count];
+            speech.CopyTo(speechContent, 0);
 
-            FileContentResult fileContentResult = new(audioContent, "audio/mpeg");
-            string fileToken = Guid.NewGuid().ToString("N")[..8];
-            var fileUploadHandle = new KeyValuePair<Semaphore, FileContentResult>(new Semaphore(0, 1), fileContentResult);
-            _deviceContext.FileList.Add(fileToken, fileUploadHandle);
+            // 写文件到本地硬盘
+            var fileName = $"{sn}_{DateTimeOffset.Now.ToUnixTimeSeconds()}.mp3";
+            var filePath = "./Tts";
+            var fullPath = $"{filePath}/{fileName}";
+            if (!Directory.Exists(filePath)) Directory.CreateDirectory(filePath);
+            FileStream fileStream = new(fullPath, FileMode.CreateNew);
+            BinaryWriter binaryWriter = new(fileStream);
+            binaryWriter.Write(speechContent);
+            binaryWriter.Close();
+            fileStream.Close();
+            speechContent = null;
 
-            if (!device.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken))) return BadRequest("设备未响应");
-            var ret = fileUploadHandle.Key.WaitOne(1000 * 60);
-            _deviceContext.FileList.Remove(fileToken);
-            return ret ? Ok() : BadRequest("传输超时");
+            // 判断设备类型并下发数据
+            var device = _deviceContext.DevicePool[sn];
+            if (device.Type == DeviceType.WiFi_Test)
+            {
+                var fileUploadHandler = new Services.Message.File(speech);
+                device.FileQueue.Add(fileUploadHandler);
+                speech = null;
+                fileUploadHandler.Semaphore.WaitOne();
+                return fileUploadHandler.FileStatus == FileStatus.Success ? Ok() : BadRequest("文件传输失败");
+            }
+            else if (device.Type == DeviceType.Cellular_Test)
+            {
+                AudioTransferDto audioTransferDto = new AudioTransferDto()
+                {
+                    FileName = fileName,
+                    FilePath = filePath,
+                    Sn = sn,
+                    User = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value
+                };
+                string fileToken = Guid.NewGuid().ToString("N")[..8];
+                _deviceContext.AudioDict.Add(fileToken, audioTransferDto);
+                if (!device.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken))) return BadRequest("设备未响应");
+                return await audioTransferDto.Wait() ? Ok() : BadRequest("下载超时");
+            }
+            return BadRequest("不支持该设备类型");
         }
 
         /// <summary>
@@ -298,30 +329,6 @@ namespace NetworkSoundBox.Controllers
             {
                 return BadRequest("非法参数");
             }
-        }
-
-        /// <summary>
-        /// 测试文件下载
-        /// </summary>
-        /// <param name="fileToken"></param>
-        /// <returns></returns>
-        [HttpGet("download_file_test")]
-        public async Task<IActionResult> DownloadFileTest([FromQuery] string fileToken)
-        {
-            if (fileToken == "12345678")
-            {
-                if (_deviceContext.FileContentResult_Test == null)
-                {
-                    var text = "测试音频,测试音频,测试音频,测试音频,测试音频,测试音频,测试音频,测试音频";
-                    var speech = await _xunfeiTtsService.GetSpeech(text, "xiaoyan", 50, 50, 50);
-                    byte[] audioContent = new byte[speech.Count];
-                    speech.CopyTo(audioContent, 0);
-                    _deviceContext.FileContentResult_Test = new FileContentResult(audioContent, "audio/mpeg");
-                    return _deviceContext.FileContentResult_Test;
-                }
-                return _deviceContext.FileContentResult_Test;
-            }
-            return BadRequest("参数不正确");
         }
 
         /// <summary>
