@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +13,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Filter;
+using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.DTO;
 using NetworkSoundBox.Services.Message;
 using NetworkSoundBox.Services.TextToSpeech;
 
@@ -25,8 +29,10 @@ namespace NetworkSoundBox.Controllers
         private readonly IDeviceContext _deviceContext;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IXunfeiTtsService _xunfeiTtsService;
+        private readonly INotificationContext _notificationContext;
 
         public DeviceController(
+            INotificationContext notificationContext,
             IXunfeiTtsService xunfeiTtsService,
             IHttpClientFactory httpClientFactory, 
             IDeviceContext deviceContext)
@@ -34,6 +40,7 @@ namespace NetworkSoundBox.Controllers
             _httpClientFactory = httpClientFactory;
             _deviceContext = deviceContext;
             _xunfeiTtsService = xunfeiTtsService;
+            _notificationContext = notificationContext;
         }
 
         /// <summary>
@@ -205,30 +212,44 @@ namespace NetworkSoundBox.Controllers
         /// <returns></returns>
         [Authorize]
         [HttpPost("file/sn{sn}")]
-        public IActionResult TransFile(string sn, IFormFile formFile)
+        public async Task<IActionResult> TransFile(string sn, IFormFile formFile)
         {
-            var device = _deviceContext.DevicePool[sn];
+            // 读取文件到内存
             byte[] content = new byte[formFile.Length];
-            formFile.OpenReadStream().Read(content);
-            if (device.Type == Services.Message.DeviceType.WiFi_Test)
+            formFile.OpenReadStream().Read(content, 0, content.Length);
+            //设置文件名为sn_timestamp.mp3格式，保存在本地硬盘
+            var fileName = $"{sn}_{DateTimeOffset.Now.ToUnixTimeSeconds()}.mp3";
+            var path = "./Uploaded";
+            var fullPath = path + "/" + fileName;
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+            FileStream fileStream = new(fullPath, FileMode.CreateNew);
+            BinaryWriter binaryWriter = new(fileStream);
+            binaryWriter.Write(content);
+            binaryWriter.Close();
+            fileStream.Close();
+
+
+            var device = _deviceContext.DevicePool[sn];
+            if (device.Type == DeviceType.WiFi_Test)
             {
-                var fileUploadHandle = new File(content.ToList());
+                var fileUploadHandle = new Services.Message.File(content.ToList());
                 device.FileQueue.Add(fileUploadHandle);
                 fileUploadHandle.Semaphore.WaitOne();
                 return fileUploadHandle.FileStatus == FileStatus.Success ? Ok() : BadRequest("文件传输失败");
             }
             else
             {
-                FileContentResult fileContentResult = new(content, "audio/mp3");
+                AudioTransferDto dto = new()
+                {
+                    Sn = sn,
+                    FileName = fileName,
+                    FilePath = path,
+                    User = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value
+                };
                 string fileToken = Guid.NewGuid().ToString("N")[..8];
-                var fileUploadHandle = new KeyValuePair<Semaphore, FileContentResult>(new Semaphore(0, 1), fileContentResult);
-                _deviceContext.FileList.Add(fileToken, fileUploadHandle);
-
+                _deviceContext.AudioDict.Add(fileToken, dto);
                 if (!device.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken))) return BadRequest("设备未响应");
-
-                var ret = fileUploadHandle.Key.WaitOne(1000 * 60);
-                _deviceContext.FileList.Remove(fileToken);
-                return ret ? Ok() : BadRequest("传输超时");
+                return await dto.Wait() ? Ok() : BadRequest("下载超时");
             }
         }
         
@@ -311,29 +332,48 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("download_file_stream")]
         public async Task<IActionResult> DownloadFileStream([FromQuery] string fileToken)
         {
-            if (_deviceContext.FileList.TryGetValue(fileToken, out var pair))
+            if (_deviceContext.AudioDict.TryGetValue(fileToken, out AudioTransferDto audioHandler))
             {
-                var fileContent = pair.Value.FileContents;
-                var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds().ToString();
-                var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(timeStamp)}.mp3";
-                Response.ContentType = "audio/mp3";
-                Response.Headers.Add("Content-Disposition", new string[] {contentDisposition});
-                Response.ContentLength = fileContent.Length;
-                using (Response.Body)
+                try
                 {
-                    int hasSent = 0;
-                    while (hasSent < fileContent.Length)
-                    {
-                        if (HttpContext.RequestAborted.IsCancellationRequested) break;
+                    FileInfo fileInfo = new($"{audioHandler.FilePath}/{audioHandler.FileName}");
+                    byte[] contentBuffer = new byte[fileInfo.Length];
+                    fileInfo.OpenRead().Read(contentBuffer, 0, contentBuffer.Length);
 
-                        await Response.Body.WriteAsync(new ReadOnlyMemory<byte>(fileContent, hasSent, 1024));
-                        hasSent += 1024;
+                    var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(fileInfo.Name)}";
+                    Response.Headers.Add("Content-Disposition", new string[] { contentDisposition });
+                    Response.ContentType = "audio/mp3";
+                    Response.ContentLength = contentBuffer.Length;
+                    using (Response.Body)
+                    {
+                        int hasSent = 0;
+                        int sendLength = 0;
+
+                        while (hasSent < contentBuffer.Length)
+                        {
+                            if (HttpContext.RequestAborted.IsCancellationRequested) break;
+                            sendLength = contentBuffer.Length - hasSent < 1024 ? contentBuffer.Length - hasSent : 1024;
+                            ReadOnlyMemory<byte> readOnlyMemory = new(contentBuffer, hasSent, sendLength);
+                            await Response.Body.WriteAsync(readOnlyMemory);
+                            hasSent += sendLength;
+                            await _notificationContext.SendDownloadProgress(audioHandler.User, 100.0f * hasSent / contentBuffer.Length);
+                            await Response.Body.FlushAsync();
+                        }
+
+                        if (hasSent == contentBuffer.Length)
+                            audioHandler.TransferCplt(true);
+                        else
+                            audioHandler.TransferCplt(false);
                     }
-                    Response.Body.Flush();
-                    return new EmptyResult();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    _deviceContext.AudioDict.Remove(fileToken);
+                    audioHandler.TransferCplt(false);
                 }
             }
-            return BadRequest("参数错误");
+            return new EmptyResult();
         }
     }
 }

@@ -10,7 +10,8 @@ namespace NetworkSoundBox.Authorization.Jwt.DTO
         public long Auths { get; set; }
         public long Expires { get; private set; }
         public bool Success { get; set; } = true;
-        public string Token { get; set; }
         public int UserId { get; set; }
+        public string OpenId { get; set; }
+        public string Token { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using NetworkSoundBox.Services.DTO;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,7 @@ namespace NetworkSoundBox.Services.Device.Handler
     {
         public Dictionary<string, DeviceHandler> DevicePool { get; }
         public Dictionary<string, KeyValuePair<Semaphore, FileContentResult>> FileList { get; }
+        public Dictionary<string, AudioTransferDto> AudioDict { get; }
         public FileContentResult FileContentResult_Test { get; set; }
     }
 }

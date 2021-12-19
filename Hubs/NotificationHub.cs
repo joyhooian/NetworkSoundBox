@@ -1,53 +1,46 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
+using NetworkSoundBox.Authorization.Jwt;
 
 namespace NetworkSoundBox.Hubs
 {
-    public class NotificationHub : Hub
+    public class NotificationHub : Hub<INotificationClient>
     {
-        public const string NOTI_LOGIN = "LoginNotify";
-        public const string NOTI_LOGOUT = "LogoutNotify";
 
-        public static HashSet<Client> ClientHashSet { get; } = new HashSet<Client>();
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly INotificationContext _notificationContext;
 
-        public NotificationHub(IHttpContextAccessor httpContextAccessor)
+        public NotificationHub(
+            INotificationContext notificationContext)
         {
-            _httpContextAccessor = httpContextAccessor;
+            _notificationContext = notificationContext;
         }
 
+
+        /// <summary>
+        /// 处理客户端登陆事件
+        /// </summary>
+        /// <returns></returns>
         public override Task OnConnectedAsync()
         {
-            string loginKey = _httpContextAccessor.HttpContext.Request.Query["access_token"];
-            Console.WriteLine(loginKey);
-            var client = Context.ConnectionId;
-            if (loginKey == string.Empty)
+            var openId = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(openId))
             {
-                return null;
+                var httpContext = Context.GetHttpContext();
+                if (httpContext != null)
+                {
+                    var loginKey = httpContext.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(loginKey))
+                    {
+                        _notificationContext.RegisterTempClient(loginKey, Context.ConnectionId);
+                        return base.OnConnectedAsync();
+                    }
+                }
+                Context.Abort();
             }
-            RegisterClient(loginKey, client);
-            Clients.Client(client).SendAsync("ConnectResponse", "Hello");
-
             return base.OnConnectedAsync();
         }
-
-        public void RegisterClient(string loginKey, string client)
-        {
-            ClientHashSet.Add(new Client
-            {
-                ClientId = client,
-                LoginKey = loginKey
-            });
-        }
-    }
-
-    public class Client
-    {
-        public string ClientId { get; set; }
-        public string LoginKey { get; set; }
     }
 }

@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using AutoMapper;
-using Newtonsoft.Json;
 using NetworkSoundBox.Authorization.Jwt;
 using NetworkSoundBox.Authorization.Secret.DTO;
 using NetworkSoundBox.Authorization.WxAuthorization.Login;
@@ -20,6 +17,7 @@ using NetworkSoundBox.Entities;
 using NetworkSoundBox.Hubs;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Message;
+using Newtonsoft.Json;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -29,30 +27,27 @@ namespace NetworkSoundBox.Controllers
     {
         private readonly IDeviceContext _deviceContext;
         private readonly MySqlDbContext _dbContext;
-        private readonly IHttpClientFactory _httpClientFactory;
         private readonly IWxLoginQRService _wxLoginQRService;
         private readonly IWxLoginService _wxLoginService;
         private readonly IJwtAppService _jwtAppService;
-        private readonly IHubContext<NotificationHub> _notificationHub;
+        private readonly INotificationContext _notificationContext;
         private readonly IMapper _mapper;
 
         public SoundboxController(
             IDeviceContext tcpService,
             MySqlDbContext dbContext,
-            IHttpClientFactory httpClientFactory, 
             IWxLoginQRService wxLoginQRService,
             IWxLoginService wxLoginService,
             IJwtAppService jwtAppService,
-            IHubContext<NotificationHub> notificationHub,
+            INotificationContext notificationContext,
             IMapper mapper)
         {
             _deviceContext = tcpService;
             _dbContext = dbContext;
-            _httpClientFactory = httpClientFactory;
             _wxLoginQRService = wxLoginQRService;
             _wxLoginService = wxLoginService;
             _jwtAppService = jwtAppService;
-            _notificationHub = notificationHub;
+            _notificationContext = notificationContext;
             _mapper = mapper;
         }
 
@@ -64,7 +59,7 @@ namespace NetworkSoundBox.Controllers
         }
 
         [HttpGet("logintest{loginKey}role{role}")]
-        public bool LoginTest(string loginKey, string role)
+        public IActionResult LoginTest(string loginKey, string role)
         {
             var user = _dbContext.Users.FirstOrDefault(u => u.Role == role);
             var jwt = _jwtAppService.Create(new UserDto
@@ -73,18 +68,16 @@ namespace NetworkSoundBox.Controllers
                 OpenId = user.Openid,
                 Role = user.Role
             });
-            var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
-            if (client != null)
+            if (_notificationContext.ClientDict.ContainsKey(loginKey))
             {
-                client.LoginKey = jwt.Token;
-                _notificationHub.Clients.Client(client.ClientId).SendAsync("LoginToken", jwt.Token);
-                return true;
+                _notificationContext.SendClientLogin(loginKey, jwt.Token);
+                return Ok();
             }
-            return false;
+            return BadRequest();
         }
 
         [HttpGet("wxapi/code2session/{code}/loginkey/{loginKey}")]
-        public async Task<bool> Code2Session(string code, string loginKey)
+        public async Task<IActionResult> Code2Session(string code, string loginKey)
         {
             string openId = await _wxLoginService.Code2Session(code);
             var user = _dbContext.Users.FirstOrDefault(u => u.Openid == openId);
@@ -94,13 +87,8 @@ namespace NetworkSoundBox.Controllers
                 OpenId = user.Openid,
                 Role = user.Role
             });
-            var client = NotificationHub.ClientHashSet.FirstOrDefault(c => c.LoginKey == loginKey);
-            if (client != null)
-            {
-                await _notificationHub.Clients.Client(client.ClientId).SendAsync(jwt.Token);
-                return true;
-            }
-            return false;
+            await _notificationContext.SendClientLogin(loginKey, jwt.Token);
+            return Ok();
         }
 
         [HttpPost("wx/login")]
@@ -447,7 +435,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
+                device = DeviceContext._devicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch(Exception ex)
             {
@@ -487,7 +475,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
+                device = DeviceContext._devicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch (Exception ex)
             {
