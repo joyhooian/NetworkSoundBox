@@ -27,8 +27,8 @@ def Main():
     
     # target = 'server'
     target = 'local'
-    deviceType = '4G'
-    # deviceType = 'WiFi'
+    # deviceType = '4G'
+    deviceType = 'WiFi'
     # sn = '0065a0fa'
 
     # region 环境变量设置

@@ -34,7 +34,7 @@ namespace NetworkSoundBox.Controllers
         public DeviceController(
             INotificationContext notificationContext,
             IXunfeiTtsService xunfeiTtsService,
-            IHttpClientFactory httpClientFactory, 
+            IHttpClientFactory httpClientFactory,
             IDeviceContext deviceContext)
         {
             _httpClientFactory = httpClientFactory;
@@ -124,7 +124,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult Volumn([FromQuery] string sn, int volumn)
         {
             DeviceHandler device = _deviceContext.DevicePool[sn];
-            return device.SendVolumn(volumn) ? Ok() : BadRequest("设备未响应");
+            return device.SendVolume(volumn) ? Ok() : BadRequest("设备未响应");
         }
 
         /// <summary>
@@ -154,6 +154,38 @@ namespace NetworkSoundBox.Controllers
         }
 
         /// <summary>
+        /// 批量下发定时任务
+        /// </summary>
+        /// <param name="sn"></param>
+        /// <param name="dtos"></param>
+        /// <returns></returns>
+        [Authorize]
+        [HttpPost("cron_tasks")]
+        public IActionResult SetCronTasks([FromQuery] string sn, [FromBody] IList<CronTaskDto> dtos)
+        {
+            var device = _deviceContext.DevicePool[sn];
+            foreach (var dto in dtos)
+            {
+                // ReSharper disable once CollectionNeverQueried.Local
+                List<byte> data = new()
+                {
+                    (byte) dto.Index,
+                    (byte) dto.StartTime.Hour,
+                    (byte) dto.StartTime.Minute,
+                    (byte) dto.EndTime.Hour,
+                    (byte) dto.EndTime.Minute,
+                    (byte) dto.Volumn,
+                    (byte) (dto.Relay ? 0x01 : 0x00)
+                };
+                dto.Weekdays.ForEach(d => { data.Add((byte) (d + 1)); });
+                data.Add((byte) dto.Audio);
+                if (!device.SendCronTask(data)) return BadRequest("设置失败");
+            }
+
+            return Ok();
+        }
+
+        /// <summary>
         /// 下发定时任务
         /// </summary>
         /// <param name="sn"></param>
@@ -161,23 +193,20 @@ namespace NetworkSoundBox.Controllers
         /// <returns></returns>
         [Authorize]
         [HttpPost("cron_task")]
-        public IActionResult SetAlarms([FromQuery] string sn, [FromBody] TimeSettingDto dto)
+        public IActionResult SetAlarms([FromQuery] string sn, [FromBody] CronTaskDto dto)
         {
             DeviceHandler device = _deviceContext.DevicePool[sn];
 
             List<byte> data = new();
-            data.Add((byte)dto.Index);
-            data.Add((byte)dto.StartTime.Hour);
-            data.Add((byte)dto.StartTime.Minute);
-            data.Add((byte)dto.EndTime.Hour);
-            data.Add((byte)dto.EndTime.Minute);
-            data.Add((byte)dto.Volumn);
-            data.Add((byte)(dto.Relay ? 0x01 : 0x00));
-            dto.Weekdays.ForEach(d =>
-            {
-                data.Add((byte)(d + 1));
-            });
-            data.Add((byte)dto.Audio);
+            data.Add((byte) dto.Index);
+            data.Add((byte) dto.StartTime.Hour);
+            data.Add((byte) dto.StartTime.Minute);
+            data.Add((byte) dto.EndTime.Hour);
+            data.Add((byte) dto.EndTime.Minute);
+            data.Add((byte) dto.Volumn);
+            data.Add((byte) (dto.Relay ? 0x01 : 0x00));
+            dto.Weekdays.ForEach(d => { data.Add((byte) (d + 1)); });
+            data.Add((byte) dto.Audio);
 
             return device.SendCronTask(data) ? Ok() : BadRequest("设备未响应");
         }
@@ -195,11 +224,11 @@ namespace NetworkSoundBox.Controllers
             var device = _deviceContext.DevicePool[sn];
 
             List<byte> data = new();
-            data.Add((byte)((dto.TimeDelay & 0xFF00) >> 8));
-            data.Add((byte)(dto.TimeDelay & 0x00FF));
-            data.Add((byte)dto.Volumn);
-            data.Add((byte)(dto.Relay ? 0x01 : 0x00));
-            data.Add((byte)dto.Audio);
+            data.Add((byte) ((dto.TimeDelay & 0xFF00) >> 8));
+            data.Add((byte) (dto.TimeDelay & 0x00FF));
+            data.Add((byte) dto.Volumn);
+            data.Add((byte) (dto.Relay ? 0x01 : 0x00));
+            data.Add((byte) dto.Audio);
 
             return device.SendDelayTask(data) ? Ok() : BadRequest("设备未响应");
         }
@@ -230,7 +259,7 @@ namespace NetworkSoundBox.Controllers
 
             var device = _deviceContext.DevicePool[sn];
             // WiFi 设备传输
-            if (device.Type == DeviceType.WiFi_Test)
+            if (device.Type == DeviceType.WiFiTest)
             {
                 var fileUploadHandle = new Services.Message.File(content.ToList());
                 device.FileQueue.Add(fileUploadHandle);
@@ -255,7 +284,7 @@ namespace NetworkSoundBox.Controllers
                 return await dto.Wait() ? Ok() : BadRequest("下载超时");
             }
         }
-        
+
         /// <summary>
         /// 上传TTS音频到设备
         /// </summary>
@@ -263,14 +292,15 @@ namespace NetworkSoundBox.Controllers
         /// <param name="text"></param>
         /// <param name="vcn"></param>
         /// <param name="speed"></param>
-        /// <param name="volumn"></param>
+        /// <param name="volume"></param>
         /// <returns></returns>
         [Authorize]
         [HttpPost("upload_tts")]
-        public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN, int speed = 50, int volumn = 50)
+        public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN,
+            int speed = 50, int volume = 50)
         {
             // 读取文件到内存
-            var speech = await _xunfeiTtsService.GetSpeech(text, vcn.ToString().ToLower(), speed, volumn, 50);
+            var speech = await _xunfeiTtsService.GetSpeech(text, vcn.ToString().ToLower(), speed, volume, 50);
             byte[] speechContent = new byte[speech.Count];
             speech.CopyTo(speechContent, 0);
 
@@ -288,7 +318,7 @@ namespace NetworkSoundBox.Controllers
 
             // 判断设备类型并下发数据
             var device = _deviceContext.DevicePool[sn];
-            if (device.Type == DeviceType.WiFi_Test)
+            if (device.Type == DeviceType.WiFiTest)
             {
                 var fileUploadHandler = new Services.Message.File(speech);
                 device.FileQueue.Add(fileUploadHandler);
@@ -296,7 +326,7 @@ namespace NetworkSoundBox.Controllers
                 fileUploadHandler.Semaphore.WaitOne();
                 return fileUploadHandler.FileStatus == FileStatus.Success ? Ok() : BadRequest("文件传输失败");
             }
-            else if (device.Type == DeviceType.Cellular_Test)
+            else if (device.Type == DeviceType.CellularTest)
             {
                 AudioTransferDto audioTransferDto = new AudioTransferDto()
                 {
@@ -310,6 +340,7 @@ namespace NetworkSoundBox.Controllers
                 if (!device.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken))) return BadRequest("设备未响应");
                 return await audioTransferDto.Wait() ? Ok() : BadRequest("下载超时");
             }
+
             return BadRequest("不支持该设备类型");
         }
 
@@ -348,7 +379,7 @@ namespace NetworkSoundBox.Controllers
                     fileInfo.OpenRead().Read(contentBuffer, 0, contentBuffer.Length);
 
                     var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(fileInfo.Name)}";
-                    Response.Headers.Add("Content-Disposition", new string[] { contentDisposition });
+                    Response.Headers.Add("Content-Disposition", new string[] {contentDisposition});
                     Response.ContentType = "audio/mp3";
                     Response.ContentLength = contentBuffer.Length;
                     using (Response.Body)
@@ -363,7 +394,8 @@ namespace NetworkSoundBox.Controllers
                             ReadOnlyMemory<byte> readOnlyMemory = new(contentBuffer, hasSent, sendLength);
                             await Response.Body.WriteAsync(readOnlyMemory);
                             hasSent += sendLength;
-                            await _notificationContext.SendDownloadProgress(audioHandler.User, 100.0f * hasSent / contentBuffer.Length);
+                            await _notificationContext.SendDownloadProgress(audioHandler.User,
+                                100.0f * hasSent / contentBuffer.Length);
                             await Response.Body.FlushAsync();
                         }
 
@@ -380,6 +412,7 @@ namespace NetworkSoundBox.Controllers
                     audioHandler.TransferCplt(false);
                 }
             }
+
             return new EmptyResult();
         }
 
@@ -399,7 +432,7 @@ namespace NetworkSoundBox.Controllers
                     byte[] contentBuffer = new byte[fileInfo.Length];
                     fileInfo.OpenRead().Read(contentBuffer, 0, contentBuffer.Length);
                     var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(fileInfo.Name)}";
-                    Response.Headers.Add("Content-Disposition", new string[] { contentDisposition });
+                    Response.Headers.Add("Content-Disposition", new string[] {contentDisposition});
                     Response.ContentType = "audio/mp3";
                     Response.ContentLength = contentBuffer.Length;
                     using (Response.Body)
@@ -417,9 +450,13 @@ namespace NetworkSoundBox.Controllers
                         }
                     }
                 }
-                catch (Exception) { }
+                catch (Exception)
+                {
+                }
+
                 return new EmptyResult();
             }
+
             return BadRequest();
         }
     }

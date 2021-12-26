@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace NetworkSoundBox.Controllers.DTO
 {
-    public class TimeSettingDto
+    public class CronTaskDto
     {
         public string Sn { get; set; } 
         public int Index { get; set; }

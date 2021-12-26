@@ -7,37 +7,50 @@ namespace NetworkSoundBox.Services.Message
 {
     public class Outbound : Message
     {
-        public Token Token { get; }
+        public MessageToken Token { get; }
 
-        public Outbound(Command command, Token token = null, params byte[] param)
+        public Outbound(Command command, params byte[] param)
         {
             Command = command;
-            Token = token ?? new(null, null, null);
-            if (Data == null)
-                Data = new();
-
-            Data.Add(START_BYTE);
+            Token = null;
+            Data ??= new List<byte>();
+            
+            Data.Add(StartByte);
             Data.Add((byte)Command);
             Data.Add((byte)(param.Length >> 8));
             Data.Add((byte)param.Length);
             Data.AddRange(param);
-            Data.Add(END_BYTE);
+            Data.Add(EndByte);
             MessageLen = Data.Count;
         }
 
-        public Outbound(Command command, int packageIndex, Token token = null, params byte[] param)
+        public Outbound(Command command, MessageToken token = null, params byte[] param)
         {
             Command = command;
-            Token = token ?? new(null, null, null);
-            if (Data == null)
-                Data = new();
+            Token = token;
+            Data ??= new List<byte>();
 
-            Data.Add(START_BYTE);
+            Data.Add(StartByte);
+            Data.Add((byte)Command);
+            Data.Add((byte)(param.Length >> 8));
+            Data.Add((byte)param.Length);
+            Data.AddRange(param);
+            Data.Add(EndByte);
+            MessageLen = Data.Count;
+        }
+
+        public Outbound(Command command, int packageIndex, MessageToken token = null, params byte[] param)
+        {
+            Command = command;
+            Token = token;
+            Data ??= new List<byte>();
+
+            Data.Add(StartByte);
             Data.Add((byte)Command);
             Data.Add((byte)(packageIndex >> 8));
             Data.Add((byte)packageIndex);
             Data.AddRange(param);
-            Data.Add(END_BYTE);
+            Data.Add(EndByte);
             MessageLen = Data.Count;
         }
     }

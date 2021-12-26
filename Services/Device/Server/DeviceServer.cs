@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkSoundBox.Services.Message;
 
 namespace NetworkSoundBox.Services.Device.Server
 {
@@ -15,23 +16,32 @@ namespace NetworkSoundBox.Services.Device.Server
     {
         private readonly INotificationContext _notificationContext;
         private readonly IDeviceAuthorization _deviceAuthorization;
+        private readonly IDeviceContext _deviceContext;
 
-        public ServerService(INotificationContext notificationContext, IDeviceAuthorization deviceAuthorization)
+        public ServerService(
+            INotificationContext notificationContext,
+            IDeviceAuthorization deviceAuthorization,
+            IDeviceContext deviceContext)
         {
             _notificationContext = notificationContext;
             _deviceAuthorization = deviceAuthorization;
+            _deviceContext = deviceContext;
         }
 
-        protected async override Task ExecuteAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             await Task.Yield();
-            IPAddress listeningAddr = IPAddress.Parse("0.0.0.0");
-            TcpListener server = new(listeningAddr, 10808);
+            var listenAddress = IPAddress.Parse("0.0.0.0");
+            TcpListener server = new(listenAddress, 10808);
             server.Start();
+            Console.WriteLine("TCP Server is startup for listening");
             while (true)
             {
-                Console.WriteLine("[Test] Waiting for a connection...");
-                new DeviceHandler(server.AcceptSocket(), _notificationContext, _deviceAuthorization);
+                _ = new DeviceHandler(await server.AcceptSocketAsync(),
+                    new MessageContext(),
+                    _notificationContext,
+                    _deviceAuthorization,
+                    _deviceContext);
             }
         }
     }

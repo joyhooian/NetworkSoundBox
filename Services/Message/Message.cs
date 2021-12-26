@@ -1,73 +1,155 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.IdentityModel.Tokens;
 
 namespace NetworkSoundBox.Services.Message
 {
     public enum Command
     {
-        NONE = 0xFF,
+        None = 0xFF,
 
         // Communication
-        ACTIVATION = 0x00,
-        LOGIN = 0x01,
-        HEARTBEAT = 0x02,
+        Activation = 0x00,
+        Login = 0x01,
+        Heartbeat = 0x02,
 
         // Device Control
-        REBOOT = 0x10,
-        FACTORY_RESET = 0x11,
+        Reboot = 0x10,
+        FactoryReset = 0x11,
 
         // Timing
-        LOOP_WHILE = 0x20,
-        QUERY_TIMING_MODE = 0x21,
-        QUERY_TIMING_SET = 0x22,
-        SET_TIMING_ALARM = 0x23,
-        SET_TIMING_AFTER = 0x24,
-        TIMING_REPORT = 0x25,
+        LoopWhile = 0x20,
+        QueryTimingMode = 0x21,
+        QueryTimingSet = 0x22,
+        SetTimingAlarm = 0x23,
+        SetTimingAfter = 0x24,
+        TimingReport = 0x25,
 
         // File Progress
-        FILE_TRANS_REQ_WIFI = 0xA0,
-        FILE_TRANS_PROC_WIFI = 0xA1,
-        FILE_TRANS_ERR_WIFI = 0xA2,
-        FILE_TRANS_RPT_WIFI = 0xA3,
-        FILE_TRANS_REQ_CELL = 0xA4,
-        FILE_TRANS_RPT_CELL = 0xA5,
+        FileTransReqWifi = 0xA0,
+        FileTransProcWifi = 0xA1,
+        FileTransErrWifi = 0xA2,
+        FileTransRptWifi = 0xA3,
+        FileTransReqCell = 0xA4,
+        FileTransRptCell = 0xA5,
 
         // Play Control
-        PLAY = 0xF0,
-        PAUSE = 0xF1,
-        NEXT = 0xF2,
-        PREVIOUS = 0xF3,
-        VOLUMN = 0xF4,
-        FAST_FORWARD = 0xF5,
-        FAST_BACKWARD = 0xF6,
-        PLAY_INDEX = 0xF7,
-        READ_FILES_LIST = 0xF8,
-        DELETE_FILE = 0xF9
+        Play = 0xF0,
+        Pause = 0xF1,
+        Next = 0xF2,
+        Previous = 0xF3,
+        Volume = 0xF4,
+        FastForward = 0xF5,
+        FastBackward = 0xF6,
+        PlayIndex = 0xF7,
+        ReadFilesList = 0xF8,
+        DeleteFile = 0xF9
     }
 
     public enum DeviceType
     {
-        WiFi_Test = 0x01,
-        Cellular_Test = 0x11
+        WiFiTest = 0x01,
+        CellularTest = 0x11
     }
-    
+
     public enum MessageStatus
     {
         Untouched,
         Sending,
         Sent,
         Replied,
+        Canceled,
         Failed
     }
-    
+
     public class Message
     {
-        protected const byte START_BYTE = 0x7E;
-        protected const byte END_BYTE = 0xEF;
-        public Command Command { get; protected set; }
-        public int MessageLen { get; protected set; }
-        public List<byte> Data { get; protected set; }
+        protected const byte StartByte = 0x7E;
+        protected const byte EndByte = 0xEF;
+        public Command Command { get; protected init; }
+        public int MessageLen { get; protected init; }
+        public List<byte> Data { get; protected init; }
+    }
+
+    public class MessageToken
+    {
+        private MessageStatus _status;
+        private readonly ManualResetEventSlim _processDone;
+        private readonly byte[] _expRplData;
+        public byte[] RepliedData { get; set; }
+        public Command ExpRplCmd { get; }
+        public bool IsValidate { get; private set; }
+
+        public MessageStatus Status
+        {
+            get => _status;
+            set
+            {
+                _status = value;
+                if (_status >= MessageStatus.Replied)
+                    _processDone.Set();
+            }
+        }
+
+
+        public MessageToken(Command expRplCmd, byte[] expRplData = null)
+        {
+            _processDone = new ManualResetEventSlim();
+            ExpRplCmd = expRplCmd;
+            _expRplData = expRplData;
+        }
+
+        public MessageStatus Wait()
+        {
+            _processDone.Wait();
+            return _status;
+        }
+
+        public bool SetData(List<byte> data)
+        {
+            if (data.IsNullOrEmpty()) return true;
+            RepliedData = new byte[data.Count];
+            data.CopyTo(RepliedData);
+            IsValidate = CheckReply();
+            return IsValidate;
+        }
+
+        public void SetFailed()
+        {
+            Status = MessageStatus.Failed;
+        }
+
+        public void SetCanceled()
+        {
+            Status = MessageStatus.Canceled;
+        }
+
+        public void SetReplied()
+        {
+            Status = MessageStatus.Replied;
+        }
+
+        public void SetSent()
+        {
+            Status = MessageStatus.Sent;
+        }
+
+        public void SetSending()
+            => Status = MessageStatus.Sending;
+
+        private bool CheckReply()
+        {
+            if (_expRplData == null) return true;
+            if (_expRplData.Length != RepliedData.Length) return false;
+            for (var index = 0; index < _expRplData.Length; index++)
+            {
+                if (_expRplData[index] != RepliedData[index]) return false;
+            }
+
+            return true;
+        }
     }
 }

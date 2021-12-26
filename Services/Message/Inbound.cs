@@ -19,14 +19,14 @@ namespace NetworkSoundBox.Services.Message
         {
             while (true)
             {
-                int startOffset = data.IndexOf(START_BYTE);
+                int startOffset = data.IndexOf(StartByte);
                 if (startOffset < 0)
                 {
                     break;
                 }
                 //!!长度检查
                 int endOffset = FindEnd(startOffset, data);
-                if (data[endOffset] == END_BYTE && Enum.IsDefined(typeof(Command), (int)data[startOffset + 1]))
+                if (data[endOffset] == EndByte && Enum.IsDefined(typeof(Command), (int)data[startOffset + 1]))
                 {
                     try
                     {

@@ -34,7 +34,7 @@ namespace NetworkSoundBox
             Configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        private IConfiguration Configuration { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -42,10 +42,10 @@ namespace NetworkSoundBox
 
             #region Ìí¼ÓJwt¼øÈ¨ÅäÖÃ
             #region JwtÅäÖÃ×Ö·û´®
-            string issuer = Configuration["Jwt:Issuer"];
-            string audience = Configuration["Jwt:Audience"];
-            string expire = Configuration["Jwt:ExpireMinutes"];
-            TimeSpan expiration = TimeSpan.FromMinutes(Convert.ToDouble(expire));
+            var issuer = Configuration["Jwt:Issuer"];
+            var audience = Configuration["Jwt:Audience"];
+            var expire = Configuration["Jwt:ExpireMinutes"];
+            var expiration = TimeSpan.FromMinutes(Convert.ToDouble(expire));
             SecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:SecurityKey"])); 
             #endregion
             services.AddAuthorization(options =>

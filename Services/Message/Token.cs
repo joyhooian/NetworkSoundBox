@@ -42,10 +42,10 @@ namespace NetworkSoundBox.Services.Message
             MessageTokenList = tokenList;
             _status = MessageStatus.Untouched;
             _semaphore = new Semaphore(0, 3);
-            ExpectCommand = expectCommand ?? Command.NONE;
-            ExceptionCommand = exceptionCommand ?? Command.NONE;
+            ExpectCommand = expectCommand ?? Command.None;
+            ExceptionCommand = exceptionCommand ?? Command.None;
             _expectReply = expectReply;
-            if (ExceptionCommand != Command.NONE || ExpectCommand != Command.NONE)
+            if (ExceptionCommand != Command.None || ExpectCommand != Command.None)
                 MessageTokenList.Add(this);
         }
 

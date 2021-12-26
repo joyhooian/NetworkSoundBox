@@ -406,7 +406,7 @@ namespace NetworkSoundBox.Controllers
             if (!(0 <= volumn && volumn <= 30))
                 return "Failed! Invalid param.";
 
-            return device.SendVolumn(volumn) ? "Success!" : "Failed";
+            return device.SendVolume(volumn) ? "Success!" : "Failed";
         }
         #endregion
 
@@ -447,7 +447,7 @@ namespace NetworkSoundBox.Controllers
 
         [Obsolete]
         [HttpPost("alarms")]
-        public string SetAlarms(TimeSettingDto dto)
+        public string SetAlarms(CronTaskDto dto)
         {
             if (dto == null)
             {
@@ -456,7 +456,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext._devicePool.First(pair => pair.Key == dto.Sn).Value;
+                device = _deviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch(Exception ex)
             {
@@ -497,7 +497,7 @@ namespace NetworkSoundBox.Controllers
             DeviceHandler device = null;
             try
             {
-                device = DeviceContext._devicePool.First(pair => pair.Key == dto.Sn).Value;
+                device = _deviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
             }
             catch (Exception ex)
             {

@@ -17,7 +17,7 @@ namespace NetworkSoundBox.Authorization.Jwt
 {
     public class JwtAppService : IJwtAppService
     {
-        private readonly static Dictionary<string, JwtAuthorizationDto> _tokensDict = new();
+        private static readonly Dictionary<string, JwtAuthorizationDto> _tokensDict = new();
         private readonly IConfiguration _configuration;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
