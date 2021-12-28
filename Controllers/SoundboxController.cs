@@ -264,11 +264,10 @@ namespace NetworkSoundBox.Controllers
         }
 
         [Authorize(Roles = "admin")]
-        [HttpGet("DevicesAdmin")]
+        [HttpPost("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
-            
-            List<DeviceAdminDto> list = _dbContext.Devices
+            var list = _dbContext.Devices
                 .Select(device => _mapper.Map<Device, DeviceAdminDto>(device))
                 .ToList();
             list.ForEach(device =>
@@ -472,7 +471,7 @@ namespace NetworkSoundBox.Controllers
             data.Add((byte)dto.StartTime.Minute);
             data.Add((byte)dto.EndTime.Hour);
             data.Add((byte)dto.EndTime.Minute);
-            data.Add((byte)dto.Volumn);
+            data.Add((byte)dto.Volume);
             data.Add((byte)(dto.Relay ? 0x01 : 0x00));
             dto.Weekdays.ForEach(d =>
             {
@@ -484,43 +483,6 @@ namespace NetworkSoundBox.Controllers
                 return "Success";
             }
             return "Fail";
-        }
-
-        [Obsolete]
-        [HttpPost("alarms_timeAfter")]
-        public string SetAlarmsAfter([FromBody] TimeSettingAfterDto dto)
-        {
-            if (dto == null)
-            {
-                return "Fail";
-            }
-            DeviceHandler device = null;
-            try
-            {
-                device = _deviceContext.DevicePool.First(pair => pair.Key == dto.Sn).Value;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-            if (device == null)
-            {
-                return "Fail. Device hasn't connected";
-            }
-            List<byte> data = new();
-            data.Add((byte)((dto.TimeDelay & 0xFF00) >> 8));
-            data.Add((byte)(dto.TimeDelay & 0x00FF));
-            data.Add((byte)dto.Volumn);
-            data.Add((byte)(dto.Relay ? 0x01: 0x00));
-            data.Add((byte)dto.Audio);
-            if (device.SendDelayTask(data))
-            {
-                return "Success";
-            }
-            else
-            {
-                return "Fail";
-            }
         }
 
         [Obsolete]

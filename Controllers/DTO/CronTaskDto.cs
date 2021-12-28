@@ -11,7 +11,7 @@ namespace NetworkSoundBox.Controllers.DTO
         public List<int> Weekdays { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
-        public int Volumn { get; set; }
+        public int Volume { get; set; }
         public bool Relay { get; set; }
         public int Audio { get; set; }
     }
