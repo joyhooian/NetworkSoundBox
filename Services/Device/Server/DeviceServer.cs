@@ -12,13 +12,13 @@ using NetworkSoundBox.Services.Message;
 
 namespace NetworkSoundBox.Services.Device.Server
 {
-    public class ServerService : BackgroundService
+    public class DeviceServer : BackgroundService
     {
         private readonly INotificationContext _notificationContext;
         private readonly IDeviceAuthorization _deviceAuthorization;
         private readonly IDeviceContext _deviceContext;
 
-        public ServerService(
+        public DeviceServer(
             INotificationContext notificationContext,
             IDeviceAuthorization deviceAuthorization,
             IDeviceContext deviceContext)
@@ -35,7 +35,7 @@ namespace NetworkSoundBox.Services.Device.Server
             TcpListener server = new(listenAddress, 10808);
             server.Start();
             Console.WriteLine("TCP Server is startup for listening");
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 _ = new DeviceHandler(await server.AcceptSocketAsync(),
                     new MessageContext(),

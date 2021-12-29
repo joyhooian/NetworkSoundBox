@@ -27,11 +27,12 @@ namespace NetworkSoundBox.Services.Device.Handler
         public string Sn { get; private set; }
         public DeviceType Type { get; private set; }
         public string UserOpenId { get; private set; }
-        private IPAddress IpAddress { get; }
-        private int Port { get; }
+        public IPAddress IpAddress { get; }
+        public int Port { get; }
         public BlockingCollection<File> FileQueue { get; }
         public BlockingCollection<Inbound> InboxQueue { get; }
-
+        public bool IsHbOverflow => _heartbeat.IsOverflow;
+        
         private readonly Socket _socket;
         private readonly CancellationTokenSource _cts;
 
@@ -75,6 +76,17 @@ namespace NetworkSoundBox.Services.Device.Handler
             StartSocketCommunication();
         }
 
+        public void Dispose()
+        {
+            _cts?.Cancel();
+            _loginTimer?.Dispose();
+            _heartbeatTimer?.Dispose();
+            _socket?.Close();
+            _socket?.Dispose();
+            FileQueue?.Dispose();
+            InboxQueue?.Dispose();
+            _outboxQueue?.Dispose();
+        }
 
         #region 设备后台任务
 
