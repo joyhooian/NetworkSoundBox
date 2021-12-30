@@ -735,6 +735,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 Console.WriteLine($"[{Sn}]设备重新登陆");
                 Console.WriteLine($"IP {device.IpAddress}->{IpAddress}");
                 Console.WriteLine($"Port {device.Port}->{Port}");
+                _deviceContext.DevicePool.Add(Sn, this);
             }
             else
             {
