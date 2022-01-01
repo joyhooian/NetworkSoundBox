@@ -645,6 +645,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             if (fileToken == null) return false;
 
             var token = new MessageToken(Command.FileTransReqCell);
+            _messageContext.SetToken(token);
             Outbound outbound = new(Command.FileTransReqCell, token, fileToken);
             try
             {
