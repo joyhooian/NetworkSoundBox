@@ -25,10 +25,10 @@ def Main():
     deviceCode = 0x00
     # endregion
     
-    target = 'server'
-    # target = 'local'
-    # deviceType = '4G'
-    deviceType = 'WiFi'
+    # target = 'server'
+    target = 'local'
+    deviceType = '4G'
+    # deviceType = 'WiFi'
     # sn = '0065a0fa'
 
     # region 环境变量设置

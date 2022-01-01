@@ -14,7 +14,7 @@ namespace NetworkSoundBox.Services.Message
         private readonly object[] _callbackArgs;
 
         public delegate void OverflowCallBack(params object[] args);
-        public bool IsOverflow => Count >= _maxRetryTimes;
+        public bool IsOverflow => Count > _maxRetryTimes;
         public int Timeout { get; }
         public int Count { get; private set; } = 0;
 

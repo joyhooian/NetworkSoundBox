@@ -35,7 +35,6 @@ namespace NetworkSoundBox.Services.Device.Handler
         
         private readonly Socket _socket;
         private readonly CancellationTokenSource _cts;
-
         private readonly Timer _loginTimer;
         private readonly Timer _heartbeatTimer;
         private readonly byte[] _receiveBuffer;
@@ -57,9 +56,9 @@ namespace NetworkSoundBox.Services.Device.Handler
             _socket = socket;
             _socket.SendTimeout = 5000;
             _cts = new CancellationTokenSource();
-            _heartbeat = new RetryManager(1, DefaultTimeoutLong, _ => _cts.Cancel());
+            _heartbeat = new RetryManager(3, DefaultTimeoutLong, _ => _cts.Cancel());
             _loginTimer = new Timer(LoginTimeoutCb, null, 10000, Timeout.Infinite);
-            _heartbeatTimer = new Timer(HeartbeatTimeoutCb, null, 75000, 65000);
+            _heartbeatTimer = new Timer(HeartbeatTimeoutCb, null, 30000, 25000);
 
             Sn = "";
             IpAddress = ((IPEndPoint) socket.RemoteEndPoint)?.Address;
@@ -102,7 +101,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 {
                     _heartbeat.Reset();
                     var message = InboxQueue.Take(_cts.Token);
-                    Console.WriteLine($"[{Sn}]收到长度{message.MessageLen}的数据 CMD[{message.Command.ToString()}]");
+                    Console.WriteLine($"[{Sn}]收到长度{message.MessageLen}的数据 CMD[{message.Command}]");
                     message.Data.ForEach(x => Console.Write("{0:X2} ", x));
                     Console.WriteLine("");
                     var token = _messageContext.GetToken(message.Command);

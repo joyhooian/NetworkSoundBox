@@ -396,7 +396,7 @@ namespace NetworkSoundBox.Controllers
                         await Response.Body.FlushAsync();
                     }
 
-                    audioHandler.TransferCplt(hasSent == contentBuffer.Length);
+                    audioHandler.TransferCplt(hasSent >= contentBuffer.Length);
                 }
             }
             catch (Exception ex)
