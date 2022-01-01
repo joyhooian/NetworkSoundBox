@@ -150,8 +150,11 @@ namespace NetworkSoundBox.Services.Device.Handler
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
-                    if (e is not OperationCanceledException) continue;
+                    if (e is not OperationCanceledException)
+                    {
+                        Console.WriteLine(e.Message);
+                        continue;
+                    }
                     Console.WriteLine($"[{Sn}]退出收件任务");
                     return;
                 }
@@ -217,7 +220,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    if (ex is not OperationCanceledException) Console.WriteLine(ex.Message);
                     switch (ex)
                     {
                         case OperationCanceledException:
