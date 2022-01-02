@@ -11,19 +11,22 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using NetworkSoundBox.Authorization.Device;
-using NetworkSoundBox.Authorization.Jwt;
-using NetworkSoundBox.Authorization.Policy;
-using NetworkSoundBox.Authorization.WxAuthorization.AccessToken;
-using NetworkSoundBox.Authorization.WxAuthorization.Login;
-using NetworkSoundBox.Authorization.WxAuthorization.QRCode;
-using NetworkSoundBox.AutoMap;
 using NetworkSoundBox.Entities;
-using NetworkSoundBox.Filter;
-using NetworkSoundBox.Hubs;
+using NetworkSoundBox.Middleware.Authorization.Device;
+using NetworkSoundBox.Middleware.Authorization.Jwt;
+using NetworkSoundBox.Middleware.Authorization.Policy;
+using NetworkSoundBox.Middleware.Authorization.WxAuthorization.AccessToken;
+using NetworkSoundBox.Middleware.Authorization.WxAuthorization.Login;
+using NetworkSoundBox.Middleware.Authorization.WxAuthorization.QRCode;
+using NetworkSoundBox.Middleware.AutoMap;
+using NetworkSoundBox.Middleware.Filter;
+using NetworkSoundBox.Middleware.Hubs;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Device.Server;
 using NetworkSoundBox.Services.TextToSpeech;
+using Microsoft.Extensions.Logging;
+using NLog;
+using NLog.Web;
 
 namespace NetworkSoundBox
 {

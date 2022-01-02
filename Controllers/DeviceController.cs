@@ -10,12 +10,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NetworkSoundBox.Controllers.DTO;
-using NetworkSoundBox.Filter;
-using NetworkSoundBox.Hubs;
+using NetworkSoundBox.Middleware.Filter;
+using NetworkSoundBox.Middleware.Hubs;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.DTO;
 using NetworkSoundBox.Services.Message;
 using NetworkSoundBox.Services.TextToSpeech;
+using Microsoft.Extensions.Logging;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -27,12 +28,15 @@ namespace NetworkSoundBox.Controllers
         private readonly IDeviceContext _deviceContext;
         private readonly IXunfeiTtsService _xunfeiTtsService;
         private readonly INotificationContext _notificationContext;
+        private readonly ILogger<DeviceController> _logger;
 
         public DeviceController(
+            ILogger<DeviceController> logger,
             INotificationContext notificationContext,
             IXunfeiTtsService xunfeiTtsService,
             IDeviceContext deviceContext)
         {
+            _logger = logger;
             _deviceContext = deviceContext;
             _xunfeiTtsService = xunfeiTtsService;
             _notificationContext = notificationContext;
@@ -104,6 +108,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("next_previous")]
         public IActionResult NextOrPrevious([FromQuery] string sn, int action)
         {
+            _logger.LogInformation("NextOrPrevious");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendNextOrPrevious(action) ? Ok() : BadRequest("设备未响应");
         }

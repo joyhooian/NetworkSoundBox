@@ -1,13 +1,9 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using System.Linq;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using NetworkSoundBox.Controllers.DTO;
-using Newtonsoft.Json;
 using NetworkSoundBox.Entities;
-using NetworkSoundBox.Authorization.Jwt;
+using NetworkSoundBox.Middleware.Authorization.Jwt;
+using Newtonsoft.Json;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -22,6 +18,12 @@ namespace NetworkSoundBox.Controllers
         {
             _jwtAppService = jwtAppService;
             _dbContext = dbContext;
+        }
+
+        [HttpPost("update_user")]
+        public IActionResult UpdateUserInfo(UserInfoDto dto)
+        {
+            return Ok();
         }
 
         [HttpGet("userInfo/{token}")]

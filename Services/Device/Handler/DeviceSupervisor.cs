@@ -3,16 +3,22 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Middleware.Logger;
 
 namespace NetworkSoundBox.Services.Device.Handler
 {
     public class DeviceSupervisor : BackgroundService
     {
         private readonly IDeviceContext _deviceContext;
+        private readonly ILogger<DeviceSupervisor> _logger;   
 
-        public DeviceSupervisor(IDeviceContext deviceContext)
+        public DeviceSupervisor(
+            ILogger<DeviceSupervisor> logger,
+            IDeviceContext deviceContext)
         {
             _deviceContext = deviceContext;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -21,22 +27,24 @@ namespace NetworkSoundBox.Services.Device.Handler
             while (!stoppingToken.IsCancellationRequested)
             {
                 var index = 0;
+                _logger.LogInformation(LogEvent.ServerHost, "**************************************************************");
                 foreach (var (sn, deviceHandler) in _deviceContext.DevicePool)
                 {
                     if (deviceHandler.IsHbOverflow)
                     {
                         deviceHandler.Dispose();
                         _deviceContext.DevicePool.Remove(sn);
-                        Console.WriteLine($"发现僵尸设备[{sn}], 已踢出设备表");
+                        _logger.LogInformation(LogEvent.ServerHost, $"Found zombie [{sn}], kick it out");
                     }
                     else
                     {
-                        Console.WriteLine($"{index:D5}: [{sn}]设备在线 @{deviceHandler.IpAddress}:{deviceHandler.Port}");
+                        _logger.LogInformation(LogEvent.ServerHost, $"{index:D5} Device[{sn}]is online @{deviceHandler.IpAddress}:{deviceHandler.Port}");
                         index++;
                     }
                 }
-                Console.WriteLine($"{DateTime.Now.ToLocalTime():g} 当前共{index}台设备在线");
-                Thread.Sleep(1000 * 10);
+                _logger.LogInformation(LogEvent.ServerHost, $"Has {index} devices online");
+                _logger.LogInformation(LogEvent.ServerHost, "**************************************************************");
+                Thread.Sleep(10_000);
             }
             KillAll();
         }

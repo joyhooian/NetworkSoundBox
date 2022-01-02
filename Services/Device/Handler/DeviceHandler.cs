@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using NetworkSoundBox.Authorization.Device;
 using NetworkSoundBox.Entities;
-using NetworkSoundBox.Hubs;
+using NetworkSoundBox.Middleware.Authorization.Device;
+using NetworkSoundBox.Middleware.Hubs;
 using NetworkSoundBox.Services.Message;
 using System;
 using System.Collections.Concurrent;
@@ -12,6 +12,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Middleware.Logger;
 
 namespace NetworkSoundBox.Services.Device.Handler
 {
@@ -23,6 +25,7 @@ namespace NetworkSoundBox.Services.Device.Handler
         private readonly INotificationContext _notificationContext;
         private readonly IDeviceContext _deviceContext;
         private readonly IMessageContext _messageContext;
+        private readonly ILogger<DeviceHandler> _logger;
 
         public string Sn { get; private set; }
         public DeviceType Type { get; private set; }
@@ -42,7 +45,9 @@ namespace NetworkSoundBox.Services.Device.Handler
         private int _fileCount;
         private readonly RetryManager _heartbeat;
 
-        public DeviceHandler(Socket socket,
+        public DeviceHandler(
+            ILogger<DeviceHandler> logger,
+            Socket socket,
             IMessageContext messageContext,
             INotificationContext notificationContext,
             IDeviceAuthorization deviceAuthorization,
@@ -52,6 +57,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             _deviceAuthorization = deviceAuthorization;
             _deviceContext = deviceContext;
             _messageContext = messageContext;
+            _logger = logger;
 
             _socket = socket;
             _socket.SendTimeout = 5000;
@@ -101,9 +107,10 @@ namespace NetworkSoundBox.Services.Device.Handler
                 {
                     _heartbeat.Reset();
                     var message = InboxQueue.Take(_cts.Token);
-                    Console.WriteLine($"[{Sn}]收到长度{message.MessageLen}的数据 CMD[{message.Command}]");
-                    message.Data.ForEach(x => Console.Write("{0:X2} ", x));
-                    Console.WriteLine("");
+                    _logger.LogInformation(LogEvent.MsgRecv, $"[{Sn}]Recv[{message?.MessageLen}]bytes,CMD[{message?.Command.ToString()}],Data:{Convert.ToHexString(message?.Data.ToArray())}");
+                    //Console.WriteLine($"[{Sn}]收到长度{message.MessageLen}的数据 CMD[{message.Command}]");
+                    //message.Data.ForEach(x => Console.Write("{0:X2} ", x));
+                    //Console.WriteLine("");
                     var token = _messageContext.GetToken(message.Command);
                     switch (message.Command)
                     {
@@ -152,10 +159,11 @@ namespace NetworkSoundBox.Services.Device.Handler
                 {
                     if (e is not OperationCanceledException)
                     {
-                        Console.WriteLine(e.Message);
+                        _logger.LogError(LogEvent.MsgRecv, e, $"[{Sn}]");
+                        //Console.WriteLine(e.Message);
                         continue;
                     }
-                    Console.WriteLine($"[{Sn}]退出收件任务");
+                    //Console.WriteLine($"[{Sn}]退出收件任务");
                     return;
                 }
             }
@@ -220,13 +228,15 @@ namespace NetworkSoundBox.Services.Device.Handler
                 }
                 catch (Exception ex)
                 {
-                    if (ex is not OperationCanceledException) Console.WriteLine(ex.Message);
+                    if (ex is not OperationCanceledException)
+                        _logger.LogError(LogEvent.MsgSend, ex, $"[{Sn}]");
+                        //Console.WriteLine(ex.Message);
                     switch (ex)
                     {
                         case OperationCanceledException:
                         case ObjectDisposedException:
                             message?.Token?.SetFailed();
-                            Console.WriteLine($"[{Sn}]退出发信任务");
+                            //Console.WriteLine($"[{Sn}]退出发信任务");
                             return;
                     }
                 }
@@ -250,7 +260,8 @@ namespace NetworkSoundBox.Services.Device.Handler
                     retry.Reset();
                     while (retry.Set())
                     {
-                        Console.WriteLine($"[{Sn}]申请传送文件[{_fileCount + 1}] 第{retry.Count}次尝试");
+                        _logger.LogInformation(LogEvent.FileProc, $"[{Sn}]ReqFile[{_fileCount + 1}],Retry:{retry.Count}");
+                        //Console.WriteLine($"[{Sn}]申请传送文件[{_fileCount + 1}] 第{retry.Count}次尝试");
                         MessageToken token = new(Command.FileTransReqWifi, new byte[] {0x00, 0x00});
                         _messageContext.SetToken(token);
                         _outboxQueue.Add(new Outbound(Command.FileTransReqWifi,
@@ -273,8 +284,9 @@ namespace NetworkSoundBox.Services.Device.Handler
                         retry.Reset();
                         while (retry.Set())
                         {
-                            Console.WriteLine(
-                                $"[{Sn}]传送{_fileCount + 1}号文件 第{pkgIdx:D3}包/共{file.PackageCount:D3}包 第{retry.Count}次尝试");
+                            _logger.LogInformation(LogEvent.MsgSend, $"[{Sn}]SnedFile[{_fileCount + 1}],Proc:{pkgIdx:D3}/{file.PackageCount:D3},Retry:{retry.Count}");
+                            //Console.WriteLine(
+                            //    $"[{Sn}]传送{_fileCount + 1}号文件 第{pkgIdx:D3}包/共{file.PackageCount:D3}包 第{retry.Count}次尝试");
                             var token = new MessageToken(Command.FileTransReqWifi,
                                 new[] {(byte) (pkgIdx >> 8), (byte) pkgIdx});
                             _messageContext.SetToken(token);
@@ -288,7 +300,8 @@ namespace NetworkSoundBox.Services.Device.Handler
                     //发送 [当前文件传输完成] 命令
                     while (retry.Set())
                     {
-                        Console.WriteLine($"[{Sn}]传送{_fileCount + 1}号文件完成 发送文件结束命令 第{retry.Count}次尝试");
+                        _logger.LogInformation(LogEvent.FileProc, $"[{Sn}]SendFile{_fileCount + 1}Cplt,Send EOF,Retry:{retry.Count}");
+                        //Console.WriteLine($"[{Sn}]传送{_fileCount + 1}号文件完成 发送文件结束命令 第{retry.Count}次尝试");
                         var token = new MessageToken(Command.FileTransRptWifi,
                             new byte[] {0x00, (byte) (_fileCount + 1)});
                         _messageContext.SetToken(token);
@@ -308,7 +321,8 @@ namespace NetworkSoundBox.Services.Device.Handler
                     {
                         while (retry.Set())
                         {
-                            Console.WriteLine($"[{Sn}]所有文件下发完成 通知设备 第{retry.Count}次尝试");
+                            _logger.LogInformation(LogEvent.FileProc, $"[{Sn}]FileQueueClear,SendFlag,Retry:{retry.Count}");
+                            //Console.WriteLine($"[{Sn}]所有文件下发完成 通知设备 第{retry.Count}次尝试");
                             var token = new MessageToken(Command.FileTransRptWifi, new byte[] {0x00, 0x00});
                             _messageContext.SetToken(token);
 
@@ -330,8 +344,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                             {
                                 FileQueue.Take()?.Fail();
                             }
-
-                            Console.WriteLine($"[{Sn}]退出文件下载任务");
+                            //Console.WriteLine($"[{Sn}]退出文件下载任务");
                             return;
                         case ObjectDisposedException:
                             file?.Fail();
@@ -342,7 +355,8 @@ namespace NetworkSoundBox.Services.Device.Handler
 
                             return;
                         default:
-                            Console.WriteLine(ex.Message);
+                            _logger.LogError(LogEvent.FileProc, ex, $"[{Sn}]");
+                            //Console.WriteLine(ex.Message);
                             break;
                     }
                 }
@@ -571,14 +585,16 @@ namespace NetworkSoundBox.Services.Device.Handler
         /// </summary>
         private void StartSocketCommunication()
         {
-            Console.WriteLine($"Device @{IpAddress}:{Port} has connected!");
+            _logger.LogInformation(LogEvent.DeviceConn, $"Device @{IpAddress}:{Port}has connected");
+            //Console.WriteLine($"Device @{IpAddress}:{Port} has connected!");
             try
             {
                 _socket.BeginReceive(_receiveBuffer, 0, _receiveBuffer.Length, SocketFlags.None, SocketRcvCb, this);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                _logger.LogError(LogEvent.DeviceConn, e, $"@{IpAddress}:{Port}");
+                //Console.WriteLine(e);
             }
         }
 
@@ -602,8 +618,9 @@ namespace NetworkSoundBox.Services.Device.Handler
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
-                Console.WriteLine($"Device {Sn} @{IpAddress}:{Port} disconnect");
+                //Console.WriteLine(e.Message);
+                _logger.LogInformation(LogEvent.DeviceDisconn, $"Device {Sn} @{IpAddress}:{Port} disconnect");
+                //Console.WriteLine($"Device {Sn} @{IpAddress}:{Port} disconnect");
                 Close();
             }
         }
@@ -619,15 +636,19 @@ namespace NetworkSoundBox.Services.Device.Handler
             {
                 var count = _socket.EndSend(ar);
                 var msg = ar.AsyncState as Outbound;
-                if (count <= 0) throw new Exception($"[{Sn}]发送失败 CMD[{msg?.Command:X}]");
-                Console.WriteLine($"[{Sn}]发送长度{msg?.MessageLen}的数据 CMD[{msg?.Command.ToString()}]");
+                if (count <= 0)
+                {
+                    _logger.LogError(LogEvent.MsgSend, $"[{Sn}]SendFailed CMD[{msg?.Command.ToString()}]");
+                }
+                _logger.LogInformation(LogEvent.MsgSend, $"[{Sn}]Send[{msg?.MessageLen}]bytes CMD[{msg?.Command.ToString()}]");
+                //Console.WriteLine($"[{Sn}]发送长度{msg?.MessageLen}的数据 CMD[{msg?.Command.ToString()}]");
                 msg?.Token?.SetSent();
                 msg?.Data?.ForEach(x => Console.Write($"{x:X2} "));
                 Console.WriteLine();
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                _logger.LogError(LogEvent.MsgSend, e, $"[{Sn}]");
                 switch (e)
                 {
                     case SocketException:
@@ -674,9 +695,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             }
 
             _cts.Cancel();
-            Console.WriteLine("Device @{0}:{1} login timeout!",
-                ((IPEndPoint) _socket.RemoteEndPoint)?.Address,
-                (((IPEndPoint) _socket.RemoteEndPoint)!).Port);
+            _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} login timeout!");
         }
 
         /// <summary>
@@ -697,7 +716,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             if (Sn != "") return;
             if (!_deviceAuthorization.Authorize(message.Data))
             {
-                Console.WriteLine("Authorization failed");
+                _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} Authorization failed");
                 _cts.Cancel();
                 return;
             }
@@ -706,7 +725,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             var tempDeviceType = message.Data[^1];
             if (!Enum.IsDefined(typeof(DeviceType), (int) tempDeviceType))
             {
-                Console.WriteLine("Invalid Device-Type");
+                _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} carray an invalid device-type");
                 return;
             }
 
@@ -717,7 +736,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             if (de == null)
             {
                 _cts.Cancel();
-                Console.WriteLine($"Invalid SN [{Sn}], socket @{IpAddress}:{Port} will be closed!");
+                _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} carray an invalid sn");
                 return;
             }
 
@@ -735,15 +754,13 @@ namespace NetworkSoundBox.Services.Device.Handler
                 // 该设备已经登陆, 断开之前建立的Socket并替换为新设备
                 device.Close();
                 _deviceContext.DevicePool.Remove(Sn);
-                Console.WriteLine($"[{Sn}]设备重新登陆");
-                Console.WriteLine($"IP {device.IpAddress}->{IpAddress}");
-                Console.WriteLine($"Port {device.Port}->{Port}");
+                _logger.LogInformation(LogEvent.DeviceLogin, $"[{Sn}]Device re-login {device.IpAddress}:{device.Port} -> {IpAddress}:{Port}");
                 _deviceContext.DevicePool.Add(Sn, this);
             }
             else
             {
                 _deviceContext.DevicePool.Add(Sn, this);
-                Console.WriteLine($"[{Sn}]设备成功登陆 @{IpAddress}:{Port}");
+                _logger.LogInformation(LogEvent.DeviceLogin, $"[{Sn}]Device login @{IpAddress}:{Port}");
                 _outboxQueue.TryAdd(new Outbound(Command.Login, _deviceAuthorization.GetAuthorization(Sn)));
             }
         }
@@ -762,7 +779,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             // 检查设备表中是否有Sn IP Socket与本机相同的设备
             if (!_deviceContext.DevicePool.TryGetValue(Sn, out var device)) return;
             if (device.Port != Port || !device.IpAddress.Equals(IpAddress)) return;
-            Console.WriteLine($"{Sn}设备池中存在此设备, 且IP端口一致, 移除");
+            _logger.LogInformation(LogEvent.DeviceDisconn, $"[{Sn}]Device is removed");
             _deviceContext.DevicePool.Remove(Sn);
 
             // 更新最后在线时间
