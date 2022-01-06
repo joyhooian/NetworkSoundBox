@@ -15,9 +15,6 @@ using NetworkSoundBox.Entities;
 using NetworkSoundBox.Middleware.Authorization.Device;
 using NetworkSoundBox.Middleware.Authorization.Jwt;
 using NetworkSoundBox.Middleware.Authorization.Policy;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.AccessToken;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.Login;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.QRCode;
 using NetworkSoundBox.Middleware.AutoMap;
 using NetworkSoundBox.Middleware.Filter;
 using NetworkSoundBox.Middleware.Hubs;
@@ -27,6 +24,9 @@ using NetworkSoundBox.Services.TextToSpeech;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Web;
+using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode;
+using NetworkSoundBox.Middleware.Authorization.Wechat.Login;
+using NetworkSoundBox.Middleware.Authorization.Wechat.AccessToken;
 
 namespace NetworkSoundBox
 {
@@ -100,10 +100,10 @@ namespace NetworkSoundBox
             #endregion
             services.AddTransient<IJwtAppService, JwtAppService>();
             services.AddSingleton<IAuthorizationHandler, PolicyHandler>();
-            services.AddSingleton<IWxAccessService, WxAccessService>();
-            services.AddSingleton<IWxLoginQRService, WxLoginQRService>();
+            services.AddSingleton<IWechatAccessService, WechatAccessService>();
+            services.AddSingleton<IWechatQrService, WechatQrService>();
             services.AddSingleton<IDeviceContext, DeviceContext>();
-            services.AddSingleton<IWxLoginService, WxLoginService>();
+            services.AddSingleton<IWechatLoginService, WechatLoginService>();
             services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
             services.AddSingleton<INotificationContext, NotificationContext>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();

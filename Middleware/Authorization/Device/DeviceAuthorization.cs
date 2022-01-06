@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using NetworkSoundBox.Services.Message;
+using Nsb.Type;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,13 +32,13 @@ namespace NetworkSoundBox.Middleware.Authorization.Device
 
             DeviceType deviceType = (DeviceType)requestMessage[^1];
             // 如果是4G设备，暂时不鉴权
-            if (deviceType == DeviceType.CellularTest) return true;
+            if (deviceType == DeviceType.Cellular_Test) return true;
 
             // 获取当前时区的整10时间戳
             var timeStamp = DateTimeOffset.Now.ToUnixTimeSeconds();
             timeStamp += (timeStamp % 10 < 5 ? 0 : 10) - timeStamp % 10;
             string timeStampString = "";
-            if (deviceType == DeviceType.CellularTest)
+            if (deviceType == DeviceType.Cellular_Test)
             {
                 var startTime = new DateTime(1970, 1, 1).ToLocalTime();
                 timeStampString = startTime.AddSeconds(timeStamp).ToString("yy/MM/dd, HH:mm:ss");

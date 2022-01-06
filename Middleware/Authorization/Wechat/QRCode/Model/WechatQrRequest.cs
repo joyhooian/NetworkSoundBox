@@ -4,11 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace NetworkSoundBox.Middleware.Authorization.WxAuthorization.QRCode.DTO
+namespace NetworkSoundBox.Middleware.Authorization.Wechat.QRCode.Model
 {
-    public class WxRequestQRDto
+    public class WechatQrRequest
     {
         [JsonProperty(propertyName: "scene")]
         public string Scene { get; set; }
+        [JsonProperty(propertyName: "page")]
+        public string Page { get; set; }
     }
 }

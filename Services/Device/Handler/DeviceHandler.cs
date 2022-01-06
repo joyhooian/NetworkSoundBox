@@ -1,9 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using NetworkSoundBox.Entities;
-using NetworkSoundBox.Middleware.Authorization.Device;
-using NetworkSoundBox.Middleware.Hubs;
-using NetworkSoundBox.Services.Message;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,8 +7,13 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Entities;
+using NetworkSoundBox.Middleware.Authorization.Device;
+using NetworkSoundBox.Middleware.Hubs;
 using NetworkSoundBox.Middleware.Logger;
+using NetworkSoundBox.Services.Message;
 
 namespace NetworkSoundBox.Services.Device.Handler
 {
@@ -28,7 +28,7 @@ namespace NetworkSoundBox.Services.Device.Handler
         private readonly ILogger<DeviceHandler> _logger;
 
         public string Sn { get; private set; }
-        public DeviceType Type { get; private set; }
+        public Nsb.Type.DeviceType Type { get; private set; }
         public string UserOpenId { get; private set; }
         public IPAddress IpAddress { get; }
         public int Port { get; }
@@ -729,24 +729,17 @@ namespace NetworkSoundBox.Services.Device.Handler
                 return;
             }
 
-            Type = (DeviceType) tempDeviceType;
+            Type = (Nsb.Type.DeviceType) tempDeviceType;
             using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
-            var de = db.Devices.Include(d => d.User)
-                .FirstOrDefault(d => d.Sn == Sn);
+
+            var de = db.Devices.FirstOrDefault(d => d.Sn == Sn);
+
             if (de == null)
             {
                 _cts.Cancel();
                 _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} carray an invalid sn");
                 return;
             }
-
-            if (de.DeviceType == "TEST")
-            {
-                de.DeviceType = Enum.GetName(Type);
-                db.SaveChanges();
-            }
-
-            UserOpenId = de.User.Openid;
 
             _notificationContext.SendDeviceOnline(UserOpenId, Sn);
             if (_deviceContext.DevicePool.TryGetValue(Sn, out var device))

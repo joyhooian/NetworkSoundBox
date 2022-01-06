@@ -18,15 +18,17 @@ namespace NetworkSoundBox.Entities
         }
 
         public virtual DbSet<Device> Devices { get; set; }
-        public virtual DbSet<DeviceGroup> DeviceGroups { get; set; }
-        public virtual DbSet<TimingGroup> TimingGroups { get; set; }
+        public virtual DbSet<DeviceType> DeviceTypes { get; set; }
+        public virtual DbSet<Permission> Permissions { get; set; }
+        public virtual DbSet<Role> Roles { get; set; }
         public virtual DbSet<User> Users { get; set; }
+        public virtual DbSet<UserDevice> UserDevices { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseMySql("server=110.40.133.195;database=soundbox;uid=root;pwd=Yjhyz_951103", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.26-mysql"));
+                optionsBuilder.UseMySql("server=8.130.51.198;database=NSB;user=root;password=!RXchtgH*uqeFir@FGzTy_6v", Microsoft.EntityFrameworkCore.ServerVersion.Parse("5.7.36-mysql"));
             }
         }
 
@@ -37,35 +39,35 @@ namespace NetworkSoundBox.Entities
 
             modelBuilder.Entity<Device>(entity =>
             {
-                entity.ToTable("devices");
+                entity.ToTable("Device");
 
-                entity.HasIndex(e => e.GroupId, "device_group");
-
-                entity.HasIndex(e => e.UserId, "device_user");
-
-                entity.Property(e => e.Id).HasColumnName("id");
-
-                entity.Property(e => e.Activation).HasColumnName("activation");
+                entity.Property(e => e.Id)
+                    .HasColumnType("int(11)")
+                    .ValueGeneratedNever()
+                    .HasColumnName("id");
 
                 entity.Property(e => e.ActivationKey)
-                    .HasMaxLength(255)
-                    .HasColumnName("activation_key");
-
-                entity.Property(e => e.CreatedAt)
-                    .HasColumnType("timestamp")
-                    .HasColumnName("created_at")
-                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.Property(e => e.DeviceType)
                     .IsRequired()
                     .HasMaxLength(255)
-                    .HasColumnName("device_type");
+                    .HasColumnName("activationKey");
 
-                entity.Property(e => e.GroupId).HasColumnName("group_id");
+                entity.Property(e => e.CreateAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.DeviceReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("deviceReferenceId");
+
+                entity.Property(e => e.IsActived)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("isActived");
 
                 entity.Property(e => e.LastOnline)
-                    .HasColumnType("timestamp")
-                    .HasColumnName("last_online");
+                    .HasColumnType("datetime")
+                    .HasColumnName("lastOnline");
 
                 entity.Property(e => e.Name)
                     .HasMaxLength(255)
@@ -73,121 +75,184 @@ namespace NetworkSoundBox.Entities
 
                 entity.Property(e => e.Sn)
                     .IsRequired()
-                    .HasMaxLength(8)
+                    .HasMaxLength(255)
                     .HasColumnName("sn");
 
-                entity.Property(e => e.UpdatedAt)
-                    .HasColumnType("timestamp")
-                    .ValueGeneratedOnAddOrUpdate()
-                    .HasColumnName("updated_at")
-                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.Property(e => e.UserId).HasColumnName("user_id");
-
-                entity.HasOne(d => d.Group)
-                    .WithMany(p => p.Devices)
-                    .HasForeignKey(d => d.GroupId)
-                    .HasConstraintName("device_group");
-
-                entity.HasOne(d => d.User)
-                    .WithMany(p => p.Devices)
-                    .HasForeignKey(d => d.UserId)
-                    .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("device_user");
-            });
-
-            modelBuilder.Entity<DeviceGroup>(entity =>
-            {
-                entity.ToTable("device_groups");
-
-                entity.Property(e => e.Id)
-                    .ValueGeneratedNever()
-                    .HasColumnName("id");
-
-                entity.Property(e => e.Amount).HasColumnName("amount");
-
-                entity.Property(e => e.CreatedAt)
-                    .HasColumnType("datetime")
-                    .ValueGeneratedOnAddOrUpdate()
-                    .HasColumnName("created_at")
-                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.Property(e => e.Name)
+                entity.Property(e => e.Type)
                     .IsRequired()
                     .HasMaxLength(255)
-                    .HasColumnName("name");
+                    .HasColumnName("type");
 
-                entity.Property(e => e.UpdatedAt)
+                entity.Property(e => e.UpdateAt)
                     .HasColumnType("datetime")
-                    .HasColumnName("updated_at")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updateAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
-            modelBuilder.Entity<TimingGroup>(entity =>
+            modelBuilder.Entity<DeviceType>(entity =>
             {
-                entity.ToTable("timing_groups");
+                entity.ToTable("DeviceType");
 
                 entity.Property(e => e.Id)
-                    .ValueGeneratedNever()
+                    .HasColumnType("int(11) unsigned")
                     .HasColumnName("id");
 
-                entity.Property(e => e.CreatedAt)
+                entity.Property(e => e.CreateAt)
                     .HasColumnType("datetime")
-                    .HasColumnName("created_at")
+                    .HasColumnName("createAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                entity.Property(e => e.Name)
+                entity.Property(e => e.DeviceType1)
                     .IsRequired()
                     .HasMaxLength(255)
-                    .HasColumnName("name");
+                    .HasColumnName("deviceType");
 
-                entity.Property(e => e.UpdatedAt)
+                entity.Property(e => e.DeviceTypeId)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("deviceTypeId");
+
+                entity.Property(e => e.UpdateAt)
                     .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
-                    .HasColumnName("updated_at")
+                    .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<Permission>(entity =>
+            {
+                entity.ToTable("Permission");
+
+                entity.Property(e => e.Id)
+                    .HasColumnType("int(11) unsigned")
+                    .HasColumnName("id");
+
+                entity.Property(e => e.CreateAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                entity.Property(e => e.UserId).HasColumnName("user_id");
+                entity.Property(e => e.Permission1)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("permission");
+
+                entity.Property(e => e.PermissionId)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("permissionId");
+
+                entity.Property(e => e.UpdateAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<Role>(entity =>
+            {
+                entity.ToTable("Role");
+
+                entity.Property(e => e.Id)
+                    .HasColumnType("int(11) unsigned")
+                    .HasColumnName("id");
+
+                entity.Property(e => e.CreateAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.RoleId)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("roleId");
+
+                entity.Property(e => e.RoleName)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("roleName");
+
+                entity.Property(e => e.UpdateAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             modelBuilder.Entity<User>(entity =>
             {
-                entity.ToTable("users");
+                entity.ToTable("User");
 
-                entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.Id)
+                    .HasColumnType("int(11)")
+                    .ValueGeneratedNever()
+                    .HasColumnName("id");
 
-                entity.Property(e => e.CreatedAt)
-                    .HasColumnType("timestamp")
-                    .HasColumnName("created_at")
+                entity.Property(e => e.AvatarUrl)
+                    .HasMaxLength(255)
+                    .HasColumnName("avatarUrl");
+
+                entity.Property(e => e.CreateAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                entity.Property(e => e.Email)
-                    .HasMaxLength(255)
-                    .HasColumnName("email");
-
                 entity.Property(e => e.Name)
-                    .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("name");
 
-                entity.Property(e => e.Openid)
+                entity.Property(e => e.OpenId)
+                    .IsRequired()
                     .HasMaxLength(255)
-                    .HasColumnName("openid");
+                    .HasColumnName("openId");
 
                 entity.Property(e => e.Role)
-                    .HasMaxLength(255)
+                    .HasColumnType("int(11)")
                     .HasColumnName("role");
 
-                entity.Property(e => e.TelNum)
-                    .HasMaxLength(11)
-                    .HasColumnName("tel_num")
-                    .IsFixedLength(true);
-
-                entity.Property(e => e.UpdatedAt)
-                    .HasColumnType("timestamp")
+                entity.Property(e => e.UpdateAt)
+                    .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
-                    .HasColumnName("updated_at")
+                    .HasColumnName("updateAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UserRefrenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userRefrenceId");
+            });
+
+            modelBuilder.Entity<UserDevice>(entity =>
+            {
+                entity.ToTable("User_Device");
+
+                entity.Property(e => e.Id)
+                    .HasColumnType("int(11)")
+                    .ValueGeneratedNever()
+                    .HasColumnName("id");
+
+                entity.Property(e => e.CreateAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.DeviceRefrenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("deviceRefrenceId");
+
+                entity.Property(e => e.Permission)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("permission");
+
+                entity.Property(e => e.UpdateAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UserRefrenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userRefrenceId");
             });
 
             OnModelCreatingPartial(modelBuilder);

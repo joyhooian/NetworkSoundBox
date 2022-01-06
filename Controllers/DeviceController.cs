@@ -17,6 +17,8 @@ using NetworkSoundBox.Services.DTO;
 using NetworkSoundBox.Services.Message;
 using NetworkSoundBox.Services.TextToSpeech;
 using Microsoft.Extensions.Logging;
+using Nsb.Type;
+using NetworkSoundBox.Entities;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -25,17 +27,20 @@ namespace NetworkSoundBox.Controllers
     [ServiceFilter(typeof(ResourceAuthAttribute))]
     public class DeviceController : ControllerBase
     {
+        private readonly MySqlDbContext _dbContext;
         private readonly IDeviceContext _deviceContext;
         private readonly IXunfeiTtsService _xunfeiTtsService;
         private readonly INotificationContext _notificationContext;
         private readonly ILogger<DeviceController> _logger;
 
         public DeviceController(
+            MySqlDbContext dbContext,
             ILogger<DeviceController> logger,
             INotificationContext notificationContext,
             IXunfeiTtsService xunfeiTtsService,
             IDeviceContext deviceContext)
         {
+            _dbContext = dbContext;
             _logger = logger;
             _deviceContext = deviceContext;
             _xunfeiTtsService = xunfeiTtsService;
@@ -51,6 +56,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_list")]
         public IActionResult GetPlayList([FromQuery] string sn)
         {
+            if (!CheckPermission(sn, PermissionType.View)) return BadRequest("没有操作权限");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             int result = device.GetPlayList();
             return result != -1 ? Ok(result) : BadRequest("设备未响应");
@@ -66,6 +72,8 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("delete_audio")]
         public IActionResult DeleteAudio([FromQuery] string sn, int index)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
+
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.DeleteAudio(index) ? Ok() : BadRequest("设备未响应");
         }
@@ -80,6 +88,8 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_index")]
         public IActionResult PlayIndex([FromQuery] string sn, int index)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
+
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.PlayIndex(index) ? Ok() : BadRequest("设备未响应");
         }
@@ -94,6 +104,8 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("play_pause")]
         public IActionResult PlayOrPause([FromQuery] string sn, int action)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
+
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendPlayOrPause(action) ? Ok() : BadRequest("设备未响应");
         }
@@ -108,6 +120,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("next_previous")]
         public IActionResult NextOrPrevious([FromQuery] string sn, int action)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             _logger.LogInformation("NextOrPrevious");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendNextOrPrevious(action) ? Ok() : BadRequest("设备未响应");
@@ -123,6 +136,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("volume")]
         public IActionResult Volume([FromQuery] string sn, int volume)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendVolume(volume) ? Ok() : BadRequest("设备未响应");
         }
@@ -136,6 +150,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("reboot")]
         public IActionResult Reboot([FromQuery] string sn)
         {
+            if (!CheckPermission(sn, PermissionType.Admin)) return BadRequest("没有操作权限");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendReboot() ? Ok() : BadRequest("设备未响应");
         }
@@ -149,6 +164,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("restore")]
         public IActionResult Restore([FromQuery] string sn)
         {
+            if (!CheckPermission(sn, PermissionType.Admin)) return BadRequest("没有操作权限");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendRestore() ? Ok() : BadRequest("设备未响应");
         }
@@ -163,6 +179,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("cron_tasks")]
         public IActionResult SetCronTasks([FromQuery] string sn, [FromBody] IList<CronTaskDto> dtos)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             var device = _deviceContext.DevicePool[sn];
             foreach (var dto in dtos)
             {
@@ -195,6 +212,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("cron_task")]
         public IActionResult SetAlarms([FromQuery] string sn, [FromBody] CronTaskDto dto)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             var device = _deviceContext.DevicePool[sn];
 
             List<byte> data = new()
@@ -223,6 +241,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("delay_task")]
         public IActionResult SetAlarmsAfter([FromQuery] string sn, [FromBody] DelayTaskDto dto)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             var device = _deviceContext.DevicePool[sn];
 
             List<byte> data = new()
@@ -247,6 +266,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("file/sn{sn}")]
         public async Task<IActionResult> TransFile(string sn, IFormFile formFile)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             // 读取文件到内存
             var content = new byte[formFile.Length];
             await formFile.OpenReadStream().ReadAsync(content);
@@ -263,7 +283,7 @@ namespace NetworkSoundBox.Controllers
 
             var device = _deviceContext.DevicePool[sn];
             // WiFi 设备传输
-            if (device.Type == DeviceType.WiFiTest)
+            if (device.Type == Nsb.Type.DeviceType.WiFi_Test)
             {
                 var fileUploadHandle = new Services.Message.File(content.ToList());
                 device.FileQueue.Add(fileUploadHandle);
@@ -301,6 +321,7 @@ namespace NetworkSoundBox.Controllers
         public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN,
             int speed = 50, int volume = 50)
         {
+            if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             // 读取文件到内存
             var speech = await _xunfeiTtsService.GetSpeech(text, vcn.ToString().ToLower(), speed, volume);
             var speechContent = new byte[speech.Count];
@@ -321,14 +342,14 @@ namespace NetworkSoundBox.Controllers
             var device = _deviceContext.DevicePool[sn];
             switch (device.Type)
             {
-                case DeviceType.WiFiTest:
+                case Nsb.Type.DeviceType.WiFi_Test:
                 {
                     var fileUploadHandler = new Services.Message.File(speech);
                     device.FileQueue.Add(fileUploadHandler);
                     fileUploadHandler.Semaphore.WaitOne();
                     return fileUploadHandler.FileStatus == FileStatus.Success ? Ok() : BadRequest("文件传输失败");
                 }
-                case DeviceType.CellularTest:
+                case Nsb.Type.DeviceType.Cellular_Test:
                 {
                     var audioTransferDto = new AudioTransferDto()
                     {
@@ -456,6 +477,20 @@ namespace NetworkSoundBox.Controllers
             }
 
             return BadRequest();
+        }
+
+        private bool CheckPermission(string sn, PermissionType limit)
+        {
+            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(openId)) return false;
+
+            var userEntity = _dbContext.Users.First(u => u.OpenId == openId);
+            var deviceEntity = _dbContext.Devices.First(d => d.Sn == sn);
+            var permission = _dbContext.UserDevices
+                .Where(ud => ud.DeviceRefrenceId == deviceEntity.DeviceReferenceId && ud.UserRefrenceId == userEntity.UserRefrenceId)
+                .Select(ud => ud.Permission)
+                .FirstOrDefault();
+            return permission <= (int)limit;
         }
     }
 }

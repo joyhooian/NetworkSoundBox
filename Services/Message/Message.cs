@@ -49,12 +49,6 @@ namespace NetworkSoundBox.Services.Message
         DeleteFile = 0xF9
     }
 
-    public enum DeviceType
-    {
-        WiFiTest = 0x01,
-        CellularTest = 0x11
-    }
-
     public enum MessageStatus
     {
         Untouched,

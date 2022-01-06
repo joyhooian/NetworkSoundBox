@@ -2,15 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using NetworkSoundBox.Middleware.Authorization.Jwt.DTO;
-using NetworkSoundBox.Middleware.Authorization.Secret.DTO;
+using NetworkSoundBox.Middleware.Authorization.Jwt.Model;
+using NetworkSoundBox.Models;
 
 namespace NetworkSoundBox.Middleware.Authorization.Jwt
 {
     public interface IJwtAppService
     {
-        JwtAuthorizationDto Create(UserDto userDto);
-        JwtAuthorizationDto Refresh(string token, UserDto userDto);
+        JwtModel Create(UserModel user);
+        JwtModel Refresh(string token, UserModel user);
         int GetUserId(string token);
         string GetOpenId(string token);
         bool IsCurrentActiveToken();

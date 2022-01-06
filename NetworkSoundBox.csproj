@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
 
@@ -10,9 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\Models\**" />
     <Compile Remove="Uploaded\**" />
+    <Content Remove="Services\Models\**" />
     <Content Remove="Uploaded\**" />
+    <EmbeddedResource Remove="Services\Models\**" />
     <EmbeddedResource Remove="Uploaded\**" />
+    <None Remove="Services\Models\**" />
     <None Remove="Uploaded\**" />
   </ItemGroup>
 
@@ -36,8 +40,10 @@
 
   <ItemGroup>
     <Folder Include="Services\Device\Server\" />
-    <Folder Include="Models\" />
-    <Folder Include="Services\Models\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nsb.Type\Nsb.Type.csproj" />
   </ItemGroup>
 
   <ItemGroup>

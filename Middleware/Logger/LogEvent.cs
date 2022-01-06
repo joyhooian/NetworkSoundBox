@@ -16,6 +16,11 @@ namespace NetworkSoundBox.Middleware.Logger
         MsgSend = 0x21,
 
         FileProc = 0x30,
+
+        Authorization = 0x40,
+
+        DeviceControlApi = 0x50,
+        DeviceMaintainApi
     }
 
     public static class LogEvent
@@ -31,5 +36,10 @@ namespace NetworkSoundBox.Middleware.Logger
         public static EventId MsgSend { get; } = new((int)EventEnum.MsgSend, EventEnum.MsgSend.ToString());
 
         public static EventId FileProc { get; } = new((int)EventEnum.FileProc, EventEnum.FileProc.ToString());
+
+        public static EventId Authorization { get; } = new((int)EventEnum.Authorization, EventEnum.Authorization.ToString());
+
+        public static EventId DeviceControlApi { get; } = new((int)EventEnum.DeviceControlApi, EventEnum.DeviceControlApi.ToString());
+        public static EventId DeviceMaintainApi { get; } = new((int) EventEnum.DeviceMaintainApi, EventEnum.DeviceMaintainApi.ToString());
     }
 }

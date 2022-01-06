@@ -10,14 +10,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using System.Text;
 using System.Security.Claims;
-using NetworkSoundBox.Middleware.Authorization.Jwt.DTO;
-using NetworkSoundBox.Middleware.Authorization.Secret.DTO;
+using NetworkSoundBox.Models;
+using NetworkSoundBox.Middleware.Authorization.Jwt.Model;
 
 namespace NetworkSoundBox.Middleware.Authorization.Jwt
 {
     public class JwtAppService : IJwtAppService
     {
-        private static readonly Dictionary<string, JwtAuthorizationDto> _tokensDict = new();
+        private static readonly Dictionary<string, JwtModel> _tokensDict = new();
         private readonly IConfiguration _configuration;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -29,22 +29,16 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
 
         public int GetUserId(string token)
         {
-            if (token == null || token.Equals(string.Empty)) return 0;
-            if (_tokensDict.TryGetValue(token, out JwtAuthorizationDto jwtAuthorizationDto))
-            {
-                return jwtAuthorizationDto.UserId;
-            }
-            return 0;
+            if (string.IsNullOrEmpty(token)) return 0;
+            var jwt = GetExistence(token);
+            return jwt?.UserId ?? 0;
         }
 
         public string GetOpenId(string token)
         {
-            if (token == null || token.Equals(string.Empty)) return string.Empty;
-            if (_tokensDict.TryGetValue(token, out JwtAuthorizationDto jwtAuthorizationDto))
-            {
-                return jwtAuthorizationDto.OpenId;
-            }
-            return string.Empty;
+            if (string.IsNullOrEmpty (token)) return string.Empty;
+            var jwt = GetExistence(token);
+            return jwt?.Token ?? string.Empty;
         }
 
         /// <summary>
@@ -52,7 +46,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
         /// </summary>
         /// <param name="userDto">用户信息数据传输对象</param>
         /// <returns></returns>
-        public JwtAuthorizationDto Create(UserDto userDto)
+        public JwtModel Create(UserModel userModel)
         {
             #region 生成token
             JwtSecurityTokenHandler tokenHandler = new();
@@ -65,8 +59,8 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
 
             IEnumerable<Claim> claims = new Claim[]
             {
-                new Claim(ClaimTypes.Role, userDto.Role),
-                new Claim(ClaimTypes.NameIdentifier, userDto.OpenId),
+                new Claim(ClaimTypes.Role, userModel.Role.ToString().ToLower()),
+                new Claim(ClaimTypes.NameIdentifier, userModel.OpenId),
                 new Claim(ClaimTypes.Expiration, expiresAt.ToString()),
             };
             identity.AddClaims(claims);
@@ -84,13 +78,13 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
             #endregion
-            var jwt = new JwtAuthorizationDto
+            var jwt = new JwtModel
             {
-                UserId = userDto.Id,
+                UserId = userModel.Id,
                 Token = tokenHandler.WriteToken(token),
-                Auths = new DateTimeOffset(authTime).ToUnixTimeSeconds(),
                 Success = true,
-                OpenId = userDto.OpenId
+                OpenId = userModel.OpenId,
+                ExpireAt = expiresAt
             };
             _tokensDict.Add(jwt.Token, jwt);
             return jwt;
@@ -129,21 +123,21 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
         /// 刷新 Token
         /// </summary>
         /// <param name="token"></param>
-        /// <param name="userDto"></param>
+        /// <param name="user"></param>
         /// <returns></returns>
-        public JwtAuthorizationDto Refresh(string token, UserDto userDto)
+        public JwtModel Refresh(string token, UserModel user)
         {
             var jwtOld = GetExistence(token);
             if (jwtOld == null)
             {
-                return new JwtAuthorizationDto()
+                return new JwtModel()
                 {
-                    Token = "未获取到当前Token信息",
+                    Token = string.Empty,
                     Success = false
                 };
             }
 
-            var jwt = Create(userDto);
+            var jwt = Create(user);
 
             DeactiveCurrent();
 
@@ -159,7 +153,13 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
                 : authorizationHeader.Single().Split(" ").Last();
         }
 
-        private JwtAuthorizationDto GetExistence(string token)
-        => _tokensDict[token];
+        private JwtModel GetExistence(string token)
+        {
+            if (_tokensDict.TryGetValue(token, out var jwt))
+            {
+                return jwt;
+            }
+            return null;
+        }
     }
 }

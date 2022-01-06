@@ -3,15 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace NetworkSoundBox.Middleware.Authorization.Jwt.DTO
+namespace NetworkSoundBox.Middleware.Authorization.Jwt.Model
 {
-    public class JwtAuthorizationDto
+    public class JwtModel
     {
-        public long Auths { get; set; }
-        public long Expires { get; private set; }
         public bool Success { get; set; } = true;
         public int UserId { get; set; }
         public string OpenId { get; set; }
         public string Token { get; set; }
+        public DateTimeOffset ExpireAt { get; set; }
     }
 }

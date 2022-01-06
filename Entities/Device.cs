@@ -7,19 +7,15 @@ namespace NetworkSoundBox.Entities
 {
     public partial class Device
     {
-        public uint Id { get; set; }
+        public int Id { get; set; }
+        public string DeviceReferenceId { get; set; }
         public string Sn { get; set; }
-        public string DeviceType { get; set; }
-        public sbyte Activation { get; set; }
+        public int Type { get; set; }
+        public int IsActived { get; set; }
         public string ActivationKey { get; set; }
-        public uint UserId { get; set; }
         public string Name { get; set; }
-        public int? GroupId { get; set; }
         public DateTime? LastOnline { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
-
-        public virtual DeviceGroup Group { get; set; }
-        public virtual User User { get; set; }
+        public DateTime? UpdateAt { get; set; }
+        public DateTime CreateAt { get; set; }
     }
 }

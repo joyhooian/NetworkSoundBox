@@ -8,37 +8,43 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Controllers.Model;
 using NetworkSoundBox.Entities;
 using NetworkSoundBox.Middleware.Authorization.Jwt;
-using NetworkSoundBox.Middleware.Authorization.Secret.DTO;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.Login;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.QRCode;
-using NetworkSoundBox.Middleware.Authorization.WxAuthorization.QRCode.DTO;
+using NetworkSoundBox.Middleware.Authorization.Wechat.Login;
+using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode;
+using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode.Model;
 using NetworkSoundBox.Middleware.Hubs;
+using NetworkSoundBox.Middleware.Logger;
+using NetworkSoundBox.Models;
 using NetworkSoundBox.Services.Device.Handler;
 using NetworkSoundBox.Services.Message;
 using Newtonsoft.Json;
+using Nsb.Type;
 
 namespace NetworkSoundBox.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class SoundboxController : ControllerBase
+    public class DeviceMaintainController : ControllerBase
     {
+        private readonly ILogger<DeviceMaintainController> _logger;
         private readonly IDeviceContext _deviceContext;
         private readonly MySqlDbContext _dbContext;
-        private readonly IWxLoginQRService _wxLoginQRService;
-        private readonly IWxLoginService _wxLoginService;
+        private readonly IWechatQrService _wxLoginQRService;
+        private readonly IWechatLoginService _wxLoginService;
         private readonly IJwtAppService _jwtAppService;
         private readonly INotificationContext _notificationContext;
         private readonly IMapper _mapper;
 
-        public SoundboxController(
+        public DeviceMaintainController(
+            ILogger<DeviceMaintainController> logger,
             IDeviceContext tcpService,
             MySqlDbContext dbContext,
-            IWxLoginQRService wxLoginQRService,
-            IWxLoginService wxLoginService,
+            IWechatQrService wxLoginQRService,
+            IWechatLoginService wxLoginService,
             IJwtAppService jwtAppService,
             INotificationContext notificationContext,
             IMapper mapper)
@@ -50,25 +56,24 @@ namespace NetworkSoundBox.Controllers
             _jwtAppService = jwtAppService;
             _notificationContext = notificationContext;
             _mapper = mapper;
+            _logger = logger;
         }
 
         [HttpGet("wxlogin")]
         public async Task<string> WxLoginAsync()
         {
-            WxLoginQRDto dto = await _wxLoginQRService.RequestLoginQRAsync();
+            WechatQrLoginData dto = await _wxLoginQRService.GetWechatLoginQrAsync();
             return JsonConvert.SerializeObject(dto);
         }
 
         [HttpGet("logintest{loginKey}role{role}")]
         public IActionResult LoginTest(string loginKey, string role)
         {
-            var user = _dbContext.Users.FirstOrDefault(u => u.Role == role);
-            var jwt = _jwtAppService.Create(new UserDto
-            {
-                Id = (int)user.Id,
-                OpenId = user.Openid,
-                Role = user.Role
-            });
+            if (!Enum.TryParse(typeof(RoleType), role, true, out var roleType)) return BadRequest("未知参数");
+            var userEntity = _dbContext.Users.FirstOrDefault(u => u.Role == (int)roleType);
+            if (userEntity == null) return BadRequest("未知参数");
+            var userModel = _mapper.Map<User, UserModel>(userEntity);
+            var jwt = _jwtAppService.Create(userModel);
             if (_notificationContext.ClientDict.ContainsKey(loginKey))
             {
                 _notificationContext.SendClientLogin(loginKey, jwt.Token);
@@ -77,60 +82,16 @@ namespace NetworkSoundBox.Controllers
             return BadRequest();
         }
 
-        [HttpGet("wxapi/code2session/{code}/loginkey/{loginKey}")]
-        public async Task<IActionResult> Code2Session(string code, string loginKey)
-        {
-            string openId = await _wxLoginService.Code2Session(code);
-            var user = _dbContext.Users.FirstOrDefault(u => u.Openid == openId);
-            var jwt = _jwtAppService.Create(new UserDto
-            {
-                Id = (int)user.Id,
-                OpenId = user.Openid,
-                Role = user.Role
-            });
-            await _notificationContext.SendClientLogin(loginKey, jwt.Token);
-            return Ok();
-        }
-
-        [HttpPost("wx/login")]
-        public async Task<string> WxLogin(string code)
-        {
-            string openId = await _wxLoginService.Code2Session(code);
-            var user = _dbContext.Users.FirstOrDefault(u => u.Openid == openId);
-            if (user == null)
-            {
-                user = new User
-                {
-                    Name = Guid.NewGuid().ToString("N"),
-                    Openid = openId,
-                    Role = "customer"
-                };
-                _dbContext.Users.Add(user);
-                _dbContext.SaveChanges();
-            }
-            _dbContext.Entry(user);
-
-            var jwt = _jwtAppService.Create(_mapper.Map<User, UserDto>(user));
-
-            return JsonConvert.SerializeObject(new LoginResultDto
-            {
-                UserInfo = _mapper.Map<User, UserInfoDto>(user),
-                Status = "success",
-                Token = jwt.Token,
-                ErrorMessage = ""
-            });
-        }
-
         [Authorize(Roles = "admin")]
         [HttpGet("overall")]
         public string GetOverallData()
         {
             var userCount = _dbContext.Users.Count();
             var deviceCount = _dbContext.Devices.Count();
-            var activedCount = _dbContext.Devices.Count(device => device.Activation == 1);
+            var activedCount = _dbContext.Devices.Count(device => device.IsActived == 1);
             var onlineCount = _deviceContext.DevicePool.Count;
 
-            return JsonConvert.SerializeObject(new OverallDto
+            return JsonConvert.SerializeObject(new GetDeviceOverallResponse
             {
                 UserCount = userCount,
                 DeviceCount = deviceCount,
@@ -150,7 +111,7 @@ namespace NetworkSoundBox.Controllers
             }
             dto.ActivationKey = Guid.NewGuid().ToString();
             deviceEntity = _mapper.Map<DeviceAdminDto, Device>(dto);
-            deviceEntity.UserId = 1;
+            deviceEntity.Id = 1;
             _dbContext.Devices.Add(deviceEntity);
             _dbContext.SaveChanges();
             return "Success";
@@ -172,81 +133,98 @@ namespace NetworkSoundBox.Controllers
 
         [Authorize(Roles = "admin")]
         [HttpPost("edit_device")]
-        public string EditDevice([FromBody] DeviceAdminDto dto)
+        public IActionResult EditDeviceAdmin([FromBody] EditDeviceRequest request)
         {
-            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == dto.Sn);
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == request.Sn);
             if (deviceEntity == null)
             {
-                return "Fail. Device is not existed.";
+                return BadRequest("Fail. Device is not existed.");
             }
             try
             {
-                deviceEntity.UserId = (uint)dto.UserId;
-                deviceEntity.Name = dto.Name;
-                deviceEntity.DeviceType = dto.DeviceType;
+                var tempDeviceEntity = _mapper.Map<EditDeviceRequest, Device>(request);
+                if (tempDeviceEntity.Type != 0) deviceEntity.Type = tempDeviceEntity.Type;
+                deviceEntity.Name = tempDeviceEntity.Name;
                 _dbContext.SaveChanges();
+                _dbContext.Devices.Update(deviceEntity);
             }
             catch (Exception)
             {
-                return "Fail. Invalid param";
+                return BadRequest("Fail. Invalid param");
             }
-            return "Success";
+            return Ok();
         }
 
         [Authorize(Roles = "admin")]
         [HttpPost("manual_active")]
-        public string ManualActive([FromQuery] string sn)
+        public IActionResult ManualActive([FromQuery] string sn)
         {
             Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
             if (deviceEntity == null)
             {
-                return "Fail. Device is not existed.";
+                return BadRequest("Fail. Device is not existed.");
             }
-            if (deviceEntity.Activation == 1)
+            if (deviceEntity.IsActived == 1)
             {
-                return "Warn. Device has already been actived.";
+                return Ok();
             }
-            deviceEntity.Activation = 1;
+            deviceEntity.IsActived = 1;
             _dbContext.SaveChanges();
-            return "Success.";
+            _dbContext.Devices.Update(deviceEntity);
+            return Ok();
         }
 
         [Authorize(Roles = "admin")]
         [HttpPost("manual_deactive")]
-        public string ManualDeactive([FromQuery] string sn)
+        public IActionResult ManualDeactive([FromQuery] string sn)
         {
             Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
             if (deviceEntity == null)
             {
-                return "Fail. Device is not existed.";
+                return BadRequest("Fail. Device is not existed.");
             }
-            if (deviceEntity.Activation == 0)
+            if (deviceEntity.IsActived == 0)
             {
-                return "Warn. Device has already been deactived.";
+                return Ok();
             }
-            deviceEntity.Activation = 0;
+            deviceEntity.IsActived = 0;
             _dbContext.SaveChanges();
-            return "Success";
+            _dbContext.Devices.Update(deviceEntity);
+            return Ok();
         }
 
         [Authorize]
         [HttpGet("Devices")]
-        public async Task<string> GetDevicesByUser()
+        public IActionResult GetDevicesByUser()
         {
-            var token = await HttpContext.GetTokenAsync("Bearer", "access_token");
-            var id = _jwtAppService.GetUserId(token);
-            List<DeviceCustomerDto> list = _dbContext.Devices
-                .Where(device => device.UserId == id)
-                .Select(device => _mapper.Map<Device, DeviceCustomerDto>(device))
-                .ToList();
-            list.ForEach(device =>
+            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(openId)) return BadRequest("没有权限");
+
+            try
             {
-                if (_deviceContext.DevicePool.ContainsKey(device.Sn))
+                var userEntity = _dbContext.Users.FirstOrDefault(x => x.OpenId == openId);
+                var devices = (from device in _dbContext.Devices
+                               join userDevice in _dbContext.UserDevices
+                               on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                               where userDevice.UserRefrenceId == userEntity.UserRefrenceId
+                               select device)
+                                   .ToList();
+                var responses = new List<GetDevicesCustomerResponse>();
+                devices.ForEach(device =>
                 {
-                    device.IsOnline = true;
-                }
-            });
-            return JsonConvert.SerializeObject(list);
+                    var response = _mapper.Map<Device, GetDevicesCustomerResponse>(device);
+                    if (_deviceContext.DevicePool.ContainsKey(response.Sn))
+                    {
+                        response.IsOnline = true;
+                    }
+                });
+                return Ok(JsonConvert.SerializeObject(responses));
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceMaintainApi, ex, "While GetDevicesByUser is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         [Authorize]
