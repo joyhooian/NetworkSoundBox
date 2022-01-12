@@ -12,7 +12,7 @@ namespace NetworkSoundBox.Services.Device.Handler
     {
         public Dictionary<string, DeviceHandler> DevicePool { get; }
         public Dictionary<string, KeyValuePair<Semaphore, FileContentResult>> FileList { get; }
-        public Dictionary<string, AudioTransferDto> AudioDict { get; }
+        public Dictionary<string, AudioTrxModel> AudioDict { get; }
         public FileContentResult FileContentResult_Test { get; set; }
     }
 }

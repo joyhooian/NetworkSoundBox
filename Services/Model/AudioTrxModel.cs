@@ -4,29 +4,27 @@ using System.Threading.Tasks;
 
 namespace NetworkSoundBox.Services.DTO
 {
-    public class AudioTransferDto
+    public class AudioTrxModel
     {
         public DateTimeOffset ExpireTime { get; }
         public string Sn { get; set; }
         public string FilePath { get; set; }
         public string FileName { get; set; }
-        public string User { get; set; }
         private readonly Semaphore _transferSemaphore;
         private bool _transferCpltFlag;
 
-        public AudioTransferDto()
+        public AudioTrxModel()
         {
             ExpireTime = DateTimeOffset.Now.AddMinutes(5);
             _transferSemaphore = new Semaphore(0, 1);
         }
 
-        public AudioTransferDto(string sn, string filePath, string user, string fileName)
+        public AudioTrxModel(string sn, string filePath, string fileName)
         {
             ExpireTime = DateTimeOffset.Now.AddMinutes(5);
             Sn = sn;
             FilePath = filePath;
             FileName = fileName;
-            User = user;
             _transferSemaphore = new Semaphore(0, 1);
         }
 

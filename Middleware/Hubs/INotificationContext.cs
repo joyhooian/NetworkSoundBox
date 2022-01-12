@@ -8,9 +8,9 @@ namespace NetworkSoundBox.Middleware.Hubs
         Dictionary<string, string> ClientDict { get; }
 
         Task SendClientLogin(string loginKey, string token);
-        Task SendDeviceOnline(string openId, string deviceId);
-        Task SendDeviceOffline(string openId, string deviceId);
-        Task SendDownloadProgress(string openId, float progress);
+        Task SendDeviceOnline(string sn);
+        Task SendDeviceOffline(string sn);
+        Task SendDownloadProgress(float progress, string sn);
 
         void RegisterTempClient(string loginKey, string clientId);
     }

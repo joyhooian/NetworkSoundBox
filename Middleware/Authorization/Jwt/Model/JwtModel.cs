@@ -9,7 +9,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt.Model
     {
         public bool Success { get; set; } = true;
         public int UserId { get; set; }
-        public string OpenId { get; set; }
+        public string UserRefrenceId { get; set; }
         public string Token { get; set; }
         public DateTimeOffset ExpireAt { get; set; }
     }

@@ -29,7 +29,6 @@ namespace NetworkSoundBox.Services.Device.Handler
 
         public string Sn { get; private set; }
         public Nsb.Type.DeviceType Type { get; private set; }
-        public string UserOpenId { get; private set; }
         public IPAddress IpAddress { get; }
         public int Port { get; }
         public BlockingCollection<File> FileQueue { get; }
@@ -279,8 +278,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                     {
                         pkgIdx++;
                         var pkg = file.Packages.Dequeue();
-                        _notificationContext.SendDownloadProgress(UserOpenId,
-                            (float) (100.0 * pkgIdx / file.PackageCount));
+                        _notificationContext.SendDownloadProgress(100.0f * pkgIdx / file.PackageCount, Sn);
                         retry.Reset();
                         while (retry.Set())
                         {
@@ -741,7 +739,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 return;
             }
 
-            _notificationContext.SendDeviceOnline(UserOpenId, Sn);
+            _notificationContext.SendDeviceOnline(Sn);
             if (_deviceContext.DevicePool.TryGetValue(Sn, out var device))
             {
                 // 该设备已经登陆, 断开之前建立的Socket并替换为新设备
@@ -782,7 +780,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             db.SaveChanges();
 
             // 通知前端掉线消息
-            _notificationContext.SendDeviceOffline(UserOpenId, Sn);
+            _notificationContext.SendDeviceOffline(Sn);
         }
     }
 }

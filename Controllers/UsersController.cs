@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoMapper;
@@ -90,16 +91,18 @@ namespace NetworkSoundBox.Controllers
             if (string.IsNullOrEmpty(openId)) return BadRequest("登陆失败");
 
             var userEntity = _dbContext.Users.FirstOrDefault(u => u.OpenId == openId);
-            if (User == null)
+            if (userEntity == null)
             {
                 userEntity = new User()
                 {
                     Name = wxLoginRequest.NickName,
                     OpenId = openId,
+                    UserRefrenceId = Guid.NewGuid().ToString(),
                     AvatarUrl = wxLoginRequest.AvatarUrl,
-                    Role = (int)RoleType.Customer
+                    Role = (int)RoleType.Customer,
                 };
                 _dbContext.Users.Add(userEntity);
+                _dbContext.Users.Update(userEntity);
                 _dbContext.SaveChanges();
             }
             _dbContext.Entry(userEntity);
@@ -120,8 +123,8 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("get_uinfo")]
         public IActionResult GetUserInfo()
         {
-            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-            var userEntity = _dbContext.Users.FirstOrDefault(user => user.OpenId == openId);
+            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            var userEntity = _dbContext.Users.FirstOrDefault(user => user.UserRefrenceId == userRefrenceId);
             if (userEntity == null) return BadRequest("未知错误");
             var getUserInfoResp = _mapper.Map<User, GetUserInfoResponse>(userEntity);
             return Ok(JsonConvert.SerializeObject(getUserInfoResp));

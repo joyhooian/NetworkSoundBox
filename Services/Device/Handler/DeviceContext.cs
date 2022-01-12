@@ -12,12 +12,12 @@ namespace NetworkSoundBox.Services.Device.Handler
     {
         private static readonly Dictionary<string, DeviceHandler> _devicePool = new();
         private static readonly Dictionary<string, KeyValuePair<Semaphore, FileContentResult>> _fileList = new();
-        private static readonly Dictionary<string, AudioTransferDto> _audioDict = new();
+        private static readonly Dictionary<string, AudioTrxModel> _audioDict = new();
         private static FileContentResult _fileContentResultTest;
 
         Dictionary<string, DeviceHandler> IDeviceContext.DevicePool => _devicePool;
         Dictionary<string, KeyValuePair<Semaphore, FileContentResult>> IDeviceContext.FileList => _fileList;
-        Dictionary<string, AudioTransferDto> IDeviceContext.AudioDict => _audioDict;
+        Dictionary<string, AudioTrxModel> IDeviceContext.AudioDict => _audioDict;
         FileContentResult IDeviceContext.FileContentResult_Test { get => _fileContentResultTest; set => _fileContentResultTest = value; }
     }
 }

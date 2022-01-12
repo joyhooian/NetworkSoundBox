@@ -60,7 +60,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
             IEnumerable<Claim> claims = new Claim[]
             {
                 new Claim(ClaimTypes.Role, userModel.Role.ToString().ToLower()),
-                new Claim(ClaimTypes.NameIdentifier, userModel.OpenId),
+                new Claim(ClaimTypes.NameIdentifier, userModel.UserRefrenceId),
                 new Claim(ClaimTypes.Expiration, expiresAt.ToString()),
             };
             identity.AddClaims(claims);
@@ -83,7 +83,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
                 UserId = userModel.Id,
                 Token = tokenHandler.WriteToken(token),
                 Success = true,
-                OpenId = userModel.OpenId,
+                UserRefrenceId = userModel.UserRefrenceId,
                 ExpireAt = expiresAt
             };
             _tokensDict.Add(jwt.Token, jwt);

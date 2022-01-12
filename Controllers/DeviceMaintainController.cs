@@ -197,16 +197,15 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("Devices")]
         public IActionResult GetDevicesByUser()
         {
-            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-            if (string.IsNullOrEmpty(openId)) return BadRequest("没有权限");
+            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userRefrenceId)) return BadRequest("没有权限");
 
             try
             {
-                var userEntity = _dbContext.Users.FirstOrDefault(x => x.OpenId == openId);
                 var devices = (from device in _dbContext.Devices
                                join userDevice in _dbContext.UserDevices
                                on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                               where userDevice.UserRefrenceId == userEntity.UserRefrenceId
+                               where userDevice.UserRefrenceId == userRefrenceId
                                select device)
                                    .ToList();
                 var responses = new List<GetDevicesCustomerResponse>();
@@ -231,31 +230,33 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("is_online")]
         public IActionResult GetDeviceOnlineStatus([FromQuery] string sn)
         {
-            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-            if (string.IsNullOrEmpty(openId)) return BadRequest("没有权限");
-            if (_deviceContext.DevicePool.TryGetValue(sn, out DeviceHandler device))
-            {
-                if (device.UserOpenId != openId) return BadRequest("没有权限");
-                return Ok(true);
-            }
-            return Ok(false);
+            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            var userDeviceEntity = (from device in _dbContext.Devices
+                                   join userDevice in _dbContext.UserDevices
+                                   on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                   where device.Sn == sn
+                                   select userDevice).FirstOrDefault();
+            if (userDeviceEntity == null) return BadRequest("没有权限");
+
+            return Ok(_deviceContext.DevicePool.ContainsKey(sn));
         }
 
         [Authorize(Roles = "admin")]
         [HttpPost("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
-            var list = _dbContext.Devices
-                .Select(device => _mapper.Map<Device, DeviceAdminDto>(device))
-                .ToList();
-            list.ForEach(device =>
+            var devices = _dbContext.Devices.Take(10).ToList();
+            var deviceList = new List<DeviceAdminDto>();
+            foreach (var device in devices)
             {
+                var deviceAdminDto = _mapper.Map<Device, DeviceAdminDto>(device);
                 if (_deviceContext.DevicePool.ContainsKey(device.Sn))
                 {
-                    device.IsOnline = true;
+                    deviceAdminDto.IsOnline = true;
                 }
-            });
-            return JsonConvert.SerializeObject(list);
+                deviceList.Add(deviceAdminDto);
+            }
+            return JsonConvert.SerializeObject(deviceList);
         }
 
         [HttpGet("User/{id}")]

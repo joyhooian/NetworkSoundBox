@@ -293,12 +293,11 @@ namespace NetworkSoundBox.Controllers
             // 4G 设备传输
             else
             {
-                AudioTransferDto dto = new()
+                AudioTrxModel dto = new()
                 {
                     Sn = sn,
                     FileName = fileName,
                     FilePath = path,
-                    User = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 };
                 var fileToken = Guid.NewGuid().ToString("N")[..8];
                 _deviceContext.AudioDict.Add(fileToken, dto);
@@ -351,12 +350,11 @@ namespace NetworkSoundBox.Controllers
                 }
                 case Nsb.Type.DeviceType.Cellular_Test:
                 {
-                    var audioTransferDto = new AudioTransferDto()
+                    var audioTransferDto = new AudioTrxModel()
                     {
                         FileName = fileName,
                         FilePath = filePath,
                         Sn = sn,
-                        User = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                     };
                     var fileToken = Guid.NewGuid().ToString("N")[..8];
                     _deviceContext.AudioDict.Add(fileToken, audioTransferDto);
@@ -394,7 +392,7 @@ namespace NetworkSoundBox.Controllers
         [HttpGet("download_file_stream")]
         public async Task<IActionResult> DownloadFileStream([FromQuery] string fileToken)
         {
-            if (!_deviceContext.AudioDict.TryGetValue(fileToken, out AudioTransferDto audioHandler))
+            if (!_deviceContext.AudioDict.TryGetValue(fileToken, out AudioTrxModel audioHandler))
                 return new EmptyResult();
             try
             {
@@ -417,8 +415,7 @@ namespace NetworkSoundBox.Controllers
                         ReadOnlyMemory<byte> readOnlyMemory = new(contentBuffer, hasSent, sendLength);
                         await Response.Body.WriteAsync(readOnlyMemory);
                         hasSent += sendLength;
-                        await _notificationContext.SendDownloadProgress(audioHandler.User,
-                            100.0f * hasSent / contentBuffer.Length);
+                        await _notificationContext.SendDownloadProgress(100.0f * hasSent / contentBuffer.Length, audioHandler.Sn);
                         await Response.Body.FlushAsync();
                     }
 
@@ -481,10 +478,10 @@ namespace NetworkSoundBox.Controllers
 
         private bool CheckPermission(string sn, PermissionType limit)
         {
-            var openId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(openId)) return false;
+            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userRefrenceId)) return false;
 
-            var userEntity = _dbContext.Users.First(u => u.OpenId == openId);
+            var userEntity = _dbContext.Users.First(u => u.UserRefrenceId == userRefrenceId);
             var deviceEntity = _dbContext.Devices.First(d => d.Sn == sn);
             var permission = _dbContext.UserDevices
                 .Where(ud => ud.DeviceRefrenceId == deviceEntity.DeviceReferenceId && ud.UserRefrenceId == userEntity.UserRefrenceId)

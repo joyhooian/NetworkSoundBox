@@ -1,20 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
+using NetworkSoundBox.Entities;
 
 namespace NetworkSoundBox.Middleware.Hubs
 {
     public class NotificationContext : INotificationContext
     {
-        private readonly IHubContext<NotificationHub, INotificationClient> _hubContext;
         public static readonly Dictionary<string, string> _clientDict = new();
+
+        private readonly IHubContext<NotificationHub, INotificationClient> _hubContext;
+        private readonly IServiceScopeFactory _scopeFactory;
         public Dictionary<string, string> ClientDict => _clientDict;
 
         public NotificationContext(
+            IServiceScopeFactory scopeFactory,
             IHubContext<NotificationHub, INotificationClient> hubContext)
         {
             _hubContext = hubContext;
+            _scopeFactory = scopeFactory;
         }
 
         /// <summary>
@@ -38,13 +45,24 @@ namespace NetworkSoundBox.Middleware.Hubs
             return Task.CompletedTask;
         }
 
-        public Task SendDeviceOffline(string openId, string deviceId)
-            => _hubContext.Clients.User(openId).DeviceOffline(deviceId);
+        public Task SendDeviceOffline(string sn)
+            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DeviceOnline(sn);
 
-        public Task SendDeviceOnline(string openId, string deviceId)
-            => _hubContext.Clients.User(openId).DeviceOnline(deviceId);
+        public Task SendDeviceOnline(string sn)
+            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DeviceOnline(sn);
 
-        public Task SendDownloadProgress(string openId, float progress)
-            => _hubContext.Clients.User(openId).DownloadProgress(progress.ToString());
+        public Task SendDownloadProgress(float progress, string sn)
+            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DownloadProgress(progress.ToString());
+
+        private List<string> GetUserRefrenceIdList(string sn)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<MySqlDbContext>();
+            return (from userDevice in dbContext.UserDevices
+                    join device in dbContext.Devices
+                    on userDevice.DeviceRefrenceId equals device.DeviceReferenceId
+                    where device.Sn == sn
+                    select userDevice.UserRefrenceId).ToList();
+        }
     }
 }
