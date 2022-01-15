@@ -43,6 +43,7 @@ namespace NetworkSoundBox.Middleware.AutoMap
                 .ReverseMap();
             CreateMap<Device, GetDevicesAdminResponse>()
                 .ForMember(dest => dest.DeviceType, opt => opt.MapFrom(s => ((Nsb.Type.DeviceType)s.Type).ToString().ToLower()));
+            CreateMap<AddDeviceRequest, Device>().ForMember(dest => dest.Type, opt => opt.MapFrom(s => Enum.Parse(typeof(Nsb.Type.DeviceType), s.DeviceType)));
             #endregion
         }
     }

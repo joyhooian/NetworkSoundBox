@@ -115,16 +115,23 @@ namespace NetworkSoundBox.Controllers
         [Authorize(Roles = "admin")]
         [Authorize(Policy = "Permission")]
         [HttpPost("add_device")]
-        public string AddDevice([FromBody] DeviceAdminDto dto)
+        public string AddDevice([FromBody] AddDeviceRequest request)
         {
-            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == dto.Sn);
+            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == request.Sn);
             if (deviceEntity != null)
             {
                 return "Fail. The device has already existed.";
             }
-            dto.ActivationKey = Guid.NewGuid().ToString();
-            deviceEntity = _mapper.Map<DeviceAdminDto, Device>(dto);
-            deviceEntity.Id = 1;
+            try
+            {
+                deviceEntity = _mapper.Map<AddDeviceRequest, Device>(request);
+            }
+            catch (Exception)
+            {
+                return "Failed";
+            }
+            deviceEntity.DeviceReferenceId = Guid.NewGuid().ToString();
+            deviceEntity.ActivationKey = Guid.NewGuid().ToString();
             _dbContext.Devices.Add(deviceEntity);
             _dbContext.SaveChanges();
             return "Success";
