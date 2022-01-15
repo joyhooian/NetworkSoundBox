@@ -53,6 +53,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("play_list")]
         public IActionResult GetPlayList([FromQuery] string sn)
         {
@@ -69,6 +70,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="index">音频序号</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("delete_audio")]
         public IActionResult DeleteAudio([FromQuery] string sn, int index)
         {
@@ -85,6 +87,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="index">音频序号</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("play_index")]
         public IActionResult PlayIndex([FromQuery] string sn, int index)
         {
@@ -101,6 +104,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="action">1: 播放; 2: 暂停</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("play_pause")]
         public IActionResult PlayOrPause([FromQuery] string sn, int action)
         {
@@ -117,6 +121,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="action">1: 下一首; 2: 上一首</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("next_previous")]
         public IActionResult NextOrPrevious([FromQuery] string sn, int action)
         {
@@ -133,6 +138,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="volume">音量(0~30)</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("volume")]
         public IActionResult Volume([FromQuery] string sn, int volume)
         {
@@ -147,6 +153,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("reboot")]
         public IActionResult Reboot([FromQuery] string sn)
         {
@@ -161,6 +168,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("restore")]
         public IActionResult Restore([FromQuery] string sn)
         {
@@ -176,6 +184,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="dtos"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("cron_tasks")]
         public IActionResult SetCronTasks([FromQuery] string sn, [FromBody] IList<CronTaskDto> dtos)
         {
@@ -209,6 +218,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="dto"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("cron_task")]
         public IActionResult SetAlarms([FromQuery] string sn, [FromBody] CronTaskDto dto)
         {
@@ -238,6 +248,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="dto"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("delay_task")]
         public IActionResult SetAlarmsAfter([FromQuery] string sn, [FromBody] DelayTaskDto dto)
         {
@@ -263,6 +274,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="formFile"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("file/sn{sn}")]
         public async Task<IActionResult> TransFile(string sn, IFormFile formFile)
         {
@@ -316,6 +328,7 @@ namespace NetworkSoundBox.Controllers
         /// <param name="volume"></param>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("upload_tts")]
         public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN,
             int speed = 50, int volume = 50)

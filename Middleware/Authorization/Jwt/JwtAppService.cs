@@ -12,6 +12,7 @@ using System.Text;
 using System.Security.Claims;
 using NetworkSoundBox.Models;
 using NetworkSoundBox.Middleware.Authorization.Jwt.Model;
+using Nsb.Type;
 
 namespace NetworkSoundBox.Middleware.Authorization.Jwt
 {
@@ -46,7 +47,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
         /// </summary>
         /// <param name="userDto">用户信息数据传输对象</param>
         /// <returns></returns>
-        public JwtModel Create(UserModel userModel)
+        public JwtModel Create(UserModel userModel, LoginType loginType)
         {
             #region 生成token
             JwtSecurityTokenHandler tokenHandler = new();
@@ -62,6 +63,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
                 new Claim(ClaimTypes.Role, userModel.Role.ToString().ToLower()),
                 new Claim(ClaimTypes.NameIdentifier, userModel.UserRefrenceId),
                 new Claim(ClaimTypes.Expiration, expiresAt.ToString()),
+                new Claim(ClaimTypes.Actor, loginType.ToString().ToLower()),
             };
             identity.AddClaims(claims);
 
@@ -125,7 +127,8 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
         /// <param name="token"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public JwtModel Refresh(string token, UserModel user)
+        /// <param name="loginType"></param>
+        public JwtModel Refresh(string token, UserModel user, LoginType loginType)
         {
             var jwtOld = GetExistence(token);
             if (jwtOld == null)
@@ -137,7 +140,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
                 };
             }
 
-            var jwt = Create(user);
+            var jwt = Create(user, loginType);
 
             DeactiveCurrent();
 

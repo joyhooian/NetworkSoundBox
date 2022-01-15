@@ -24,7 +24,6 @@ namespace NetworkSoundBox.Middleware.Authorization.Policy
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PolicyRequirement requirement)
         {
             var defaultAuthenticate = await Schemes.GetDefaultAuthenticateSchemeAsync();
-
             if (defaultAuthenticate != null)
             {
                 if (context.User.Identity.IsAuthenticated)
@@ -34,6 +33,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Policy
                         context.Fail();
                         return;
                     }
+                    context.Succeed(requirement);
                     return;
                 }
             }

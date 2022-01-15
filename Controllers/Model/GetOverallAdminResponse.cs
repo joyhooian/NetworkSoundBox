@@ -1,6 +1,6 @@
 ﻿namespace NetworkSoundBox.Controllers.Model
 {
-    public class GetDeviceOverallResponse
+    public class GetOverallAdminResponse
     {
         public int UserCount { get; set; }
         public int DeviceCount { get; set; }

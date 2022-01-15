@@ -721,7 +721,7 @@ namespace NetworkSoundBox.Services.Device.Handler
 
             Sn = Encoding.ASCII.GetString(message.Data.GetRange(0, 8).ToArray());
             var tempDeviceType = message.Data[^1];
-            if (!Enum.IsDefined(typeof(DeviceType), (int) tempDeviceType))
+            if (!Enum.IsDefined(typeof(Nsb.Type.DeviceType), (int) tempDeviceType))
             {
                 _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} carray an invalid device-type");
                 return;

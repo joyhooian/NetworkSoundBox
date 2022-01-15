@@ -7,7 +7,7 @@ namespace NetworkSoundBox.Entities
 {
     public partial class Permission
     {
-        public uint Id { get; set; }
+        public int Id { get; set; }
         public string Permission1 { get; set; }
         public int PermissionId { get; set; }
         public DateTime? UpdateAt { get; set; }

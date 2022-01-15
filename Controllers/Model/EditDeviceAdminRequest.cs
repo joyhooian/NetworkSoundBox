@@ -2,7 +2,7 @@
 
 namespace NetworkSoundBox.Controllers.Model
 {
-    public class EditDeviceRequest
+    public class EditDeviceAdminRequest
     {
         public string Sn { get; set; }
         public string DeviceType { get; set; }

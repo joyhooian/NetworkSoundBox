@@ -62,21 +62,34 @@ namespace NetworkSoundBox.Controllers
         /// <param name="code"></param>
         /// <param name="loginKey"></param>
         /// <returns></returns>
+        [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("wx_auth")]
-        public async Task<IActionResult> WxAuth(string code, string loginKey)
+        public async Task<IActionResult> WxAuth(string loginKey)
         {
-            string openId = await _wxLoginService.GetWechatOpenId(code);
-            if (string.IsNullOrEmpty(openId)) return BadRequest("微信端服务无法访问, 请稍后再试");
-            var userEntity = _dbContext.Users.FirstOrDefault(u => u.OpenId == openId);
-            if (userEntity == null) return BadRequest("用户未注册");
+            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            var userEntity = (from user in _dbContext.Users
+                             where user.UserRefrenceId == userRefrenceId
+                             select user).First();
             var userModel = _mapper.Map<User, UserModel>(userEntity);
-            var jwt = _jwtAppService.Create(userModel);
+            var jwt = _jwtAppService.Create(userModel, LoginType.Web);
             if (_notificationContext.ClientDict.ContainsKey(loginKey))
             {
                 await _notificationContext.SendClientLogin(loginKey, jwt.Token);
                 return Ok();
             }
             return BadRequest("请重试");
+        }
+
+        /// <summary>
+        /// 用户登出
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            _jwtAppService.DeactiveCurrent();
+            return Ok();
         }
 
         /// <summary>
@@ -93,7 +106,7 @@ namespace NetworkSoundBox.Controllers
             var userEntity = _dbContext.Users.FirstOrDefault(u => u.OpenId == openId);
             if (userEntity == null)
             {
-                userEntity = new User()
+                userEntity = new Entities.User()
                 {
                     Name = wxLoginRequest.NickName,
                     OpenId = openId,
@@ -102,13 +115,12 @@ namespace NetworkSoundBox.Controllers
                     Role = (int)RoleType.Customer,
                 };
                 _dbContext.Users.Add(userEntity);
-                _dbContext.Users.Update(userEntity);
                 _dbContext.SaveChanges();
             }
             _dbContext.Entry(userEntity);
 
             var userModel = _mapper.Map<User, UserModel>(userEntity);
-            var jwt = _jwtAppService.Create(userModel);
+            var jwt = _jwtAppService.Create(userModel, LoginType.WeApp);
 
             var wxLoginResponse = _mapper.Map<UserModel, WxLoginResponse>(userModel);
             wxLoginResponse.Token = jwt.Token;
@@ -120,6 +132,7 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <returns></returns>
         [Authorize]
+        [Authorize(Policy = "Permission")]
         [HttpPost("get_uinfo")]
         public IActionResult GetUserInfo()
         {

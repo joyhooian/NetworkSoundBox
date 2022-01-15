@@ -43,7 +43,6 @@ namespace NetworkSoundBox.Entities
 
                 entity.Property(e => e.Id)
                     .HasColumnType("int(11)")
-                    .ValueGeneratedNever()
                     .HasColumnName("id");
 
                 entity.Property(e => e.ActivationKey)
@@ -57,7 +56,6 @@ namespace NetworkSoundBox.Entities
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.Property(e => e.DeviceReferenceId)
-                    .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("deviceReferenceId");
 
@@ -79,8 +77,7 @@ namespace NetworkSoundBox.Entities
                     .HasColumnName("sn");
 
                 entity.Property(e => e.Type)
-                    .IsRequired()
-                    .HasMaxLength(255)
+                    .HasColumnType("int(255)")
                     .HasColumnName("type");
 
                 entity.Property(e => e.UpdateAt)
@@ -95,7 +92,7 @@ namespace NetworkSoundBox.Entities
                 entity.ToTable("DeviceType");
 
                 entity.Property(e => e.Id)
-                    .HasColumnType("int(11) unsigned")
+                    .HasColumnType("int(11)")
                     .HasColumnName("id");
 
                 entity.Property(e => e.CreateAt)
@@ -124,7 +121,7 @@ namespace NetworkSoundBox.Entities
                 entity.ToTable("Permission");
 
                 entity.Property(e => e.Id)
-                    .HasColumnType("int(11) unsigned")
+                    .HasColumnType("int(11)")
                     .HasColumnName("id");
 
                 entity.Property(e => e.CreateAt)
@@ -153,7 +150,7 @@ namespace NetworkSoundBox.Entities
                 entity.ToTable("Role");
 
                 entity.Property(e => e.Id)
-                    .HasColumnType("int(11) unsigned")
+                    .HasColumnType("int(11)")
                     .HasColumnName("id");
 
                 entity.Property(e => e.CreateAt)
@@ -183,7 +180,6 @@ namespace NetworkSoundBox.Entities
 
                 entity.Property(e => e.Id)
                     .HasColumnType("int(11)")
-                    .ValueGeneratedNever()
                     .HasColumnName("id");
 
                 entity.Property(e => e.AvatarUrl)
@@ -226,7 +222,6 @@ namespace NetworkSoundBox.Entities
 
                 entity.Property(e => e.Id)
                     .HasColumnType("int(11)")
-                    .ValueGeneratedNever()
                     .HasColumnName("id");
 
                 entity.Property(e => e.CreateAt)

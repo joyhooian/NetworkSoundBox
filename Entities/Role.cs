@@ -7,7 +7,7 @@ namespace NetworkSoundBox.Entities
 {
     public partial class Role
     {
-        public uint Id { get; set; }
+        public int Id { get; set; }
         public string RoleName { get; set; }
         public int RoleId { get; set; }
         public DateTime? UpdateAt { get; set; }
