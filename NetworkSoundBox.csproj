@@ -10,13 +10,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Nsb.Type\**" />
     <Compile Remove="Services\Models\**" />
+    <Compile Remove="test\**" />
     <Compile Remove="Uploaded\**" />
+    <Content Remove="Nsb.Type\**" />
     <Content Remove="Services\Models\**" />
+    <Content Remove="test\**" />
     <Content Remove="Uploaded\**" />
+    <EmbeddedResource Remove="Nsb.Type\**" />
     <EmbeddedResource Remove="Services\Models\**" />
+    <EmbeddedResource Remove="test\**" />
     <EmbeddedResource Remove="Uploaded\**" />
+    <None Remove="Nsb.Type\**" />
     <None Remove="Services\Models\**" />
+    <None Remove="test\**" />
     <None Remove="Uploaded\**" />
   </ItemGroup>
 
@@ -43,7 +51,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nsb.Type\Nsb.Type.csproj" />
+    <ProjectReference Include="Nsb.Type\Nsb.Type.csproj" />
   </ItemGroup>
 
   <ItemGroup>

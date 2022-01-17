@@ -142,7 +142,14 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("del_device")]
         public string DeleteDevice([FromQuery] string sn)
         {
-            Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
+            var deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
+            var userDevice = (from ud in _dbContext.UserDevices
+                             where ud.DeviceRefrenceId == deviceEntity.DeviceReferenceId
+                             select ud).FirstOrDefault();
+            if (userDevice != null)
+            {
+                _dbContext.UserDevices.Remove(userDevice);
+            }
             if (deviceEntity == null)
             {
                 return "Fail";
@@ -226,9 +233,19 @@ namespace NetworkSoundBox.Controllers
         public IActionResult Active([FromQuery] string sn, string activeKey)
         {
             var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-            var deviceEntity = (from device in _dbContext.Devices
+            Device deviceEntity;
+            if (string.IsNullOrEmpty(sn))
+            {
+                deviceEntity = (from device in _dbContext.Devices
+                                    where device.ActivationKey == activeKey
+                                    select device).FirstOrDefault();
+            }
+            else
+            {
+                deviceEntity = (from device in _dbContext.Devices
                                 where device.Sn == sn
                                 select device).FirstOrDefault();
+            }
             if (deviceEntity == null)
             {
                 return BadRequest("无此设备");
