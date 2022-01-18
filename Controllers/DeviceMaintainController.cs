@@ -92,10 +92,10 @@ namespace NetworkSoundBox.Controllers
             var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             if (string.IsNullOrEmpty(userRefrenceId)) return BadRequest("未授权");
             var deviceList = (from device in _dbContext.Devices
-                             join userDevice in _dbContext.UserDevices
-                             on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                             where userDevice.UserRefrenceId == userRefrenceId
-                             select device).ToList();
+                              join userDevice in _dbContext.UserDevices
+                              on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                              where userDevice.UserRefrenceId == userRefrenceId
+                              select device).ToList();
             var deviceCount = deviceList.Count;
             var onlineCount = 0;
             deviceList.ForEach(device =>
@@ -144,8 +144,8 @@ namespace NetworkSoundBox.Controllers
         {
             var deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
             var userDevice = (from ud in _dbContext.UserDevices
-                             where ud.DeviceRefrenceId == deviceEntity.DeviceReferenceId
-                             select ud).FirstOrDefault();
+                              where ud.DeviceRefrenceId == deviceEntity.DeviceReferenceId
+                              select ud).FirstOrDefault();
             if (userDevice != null)
             {
                 _dbContext.UserDevices.Remove(userDevice);
@@ -184,7 +184,7 @@ namespace NetworkSoundBox.Controllers
             return Ok();
         }
 
-        [Authorize(Roles ="customer")]
+        [Authorize(Roles = "customer")]
         [Authorize(Policy = "Permission")]
         [HttpPost("edit_device_customer")]
         public IActionResult EditDeviceCustomer([FromBody] EditDeviceCustomerRequest request)
@@ -201,8 +201,8 @@ namespace NetworkSoundBox.Controllers
                 return BadRequest("无权操作");
             }
             var deviceEntity = (from device in _dbContext.Devices
-                               where device.Sn == request.Sn
-                               select device).FirstOrDefault();
+                                where device.Sn == request.Sn
+                                select device).FirstOrDefault();
             deviceEntity.Name = request.Name;
             _dbContext.SaveChanges();
             return Ok();
@@ -234,18 +234,9 @@ namespace NetworkSoundBox.Controllers
         {
             var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             Device deviceEntity;
-            if (string.IsNullOrEmpty(sn))
-            {
-                deviceEntity = (from device in _dbContext.Devices
-                                    where device.ActivationKey == activeKey
-                                    select device).FirstOrDefault();
-            }
-            else
-            {
-                deviceEntity = (from device in _dbContext.Devices
-                                where device.Sn == sn
-                                select device).FirstOrDefault();
-            }
+            deviceEntity = (from device in _dbContext.Devices
+                            where device.ActivationKey == activeKey
+                            select device).FirstOrDefault();
             if (deviceEntity == null)
             {
                 return BadRequest("无此设备");
@@ -317,7 +308,7 @@ namespace NetworkSoundBox.Controllers
                 });
                 return Ok(JsonConvert.SerializeObject(responses));
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(LogEvent.DeviceMaintainApi, ex, "While GetDevicesByUser is invoked");
                 return BadRequest(ex.Message);
@@ -331,10 +322,10 @@ namespace NetworkSoundBox.Controllers
         {
             var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             var userDeviceEntity = (from device in _dbContext.Devices
-                                   join userDevice in _dbContext.UserDevices
-                                   on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                                   where device.Sn == sn
-                                   select userDevice).FirstOrDefault();
+                                    join userDevice in _dbContext.UserDevices
+                                    on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                    where device.Sn == sn
+                                    select userDevice).FirstOrDefault();
             if (userDeviceEntity == null) return BadRequest("没有权限");
 
             return Ok(_deviceContext.DevicePool.ContainsKey(sn));
