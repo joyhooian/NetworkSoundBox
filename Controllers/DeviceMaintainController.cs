@@ -268,7 +268,7 @@ namespace NetworkSoundBox.Controllers
             Device deviceEntity = _dbContext.Devices.FirstOrDefault(x => x.Sn == sn);
             if (deviceEntity == null)
             {
-                return BadRequest("Fail. Device is not existed.");
+                return BadRequest("设备不存在");
             }
             if (deviceEntity.IsActived == 0)
             {

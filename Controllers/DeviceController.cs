@@ -203,8 +203,8 @@ namespace NetworkSoundBox.Controllers
                     (byte) dto.Volume,
                     (byte) (dto.Relay ? 0x01 : 0x00)
                 };
-                dto.Weekdays.ForEach(d => { data.Add((byte) (d + 1)); });
                 data.Add((byte) dto.Audio);
+                dto.Weekdays.ForEach(d => { data.Add((byte) (d + 1)); });
                 if (!device.SendCronTask(data)) return BadRequest("设置失败");
             }
 
