@@ -190,6 +190,9 @@ namespace NetworkSoundBox.Controllers
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             var device = _deviceContext.DevicePool[sn];
+
+            if (!device.SendCronTaskCount(dtos.Count)) return BadRequest("设置失败");
+
             foreach (var dto in dtos)
             {
                 // ReSharper disable once CollectionNeverQueried.Local

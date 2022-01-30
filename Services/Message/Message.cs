@@ -27,6 +27,7 @@ namespace NetworkSoundBox.Services.Message
         SetTimingAlarm = 0x23,
         SetTimingAfter = 0x24,
         TimingReport = 0x25,
+        CronCount = 0x87,
 
         // File Progress
         FileTransReqWifi = 0xA0,

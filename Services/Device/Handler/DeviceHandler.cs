@@ -132,6 +132,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                         case Command.SetTimingAlarm:
                         case Command.SetTimingAfter:
                         case Command.TimingReport:
+                        case Command.CronCount:
                         case Command.FileTransReqWifi:
                         case Command.FileTransProcWifi:
                         case Command.FileTransRptWifi:
@@ -200,6 +201,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                             case Command.SetTimingAlarm:
                             case Command.SetTimingAfter:
                             case Command.TimingReport:
+                            case Command.CronCount:
                             case Command.Play:
                             case Command.Pause:
                             case Command.Next:
@@ -499,6 +501,22 @@ namespace NetworkSoundBox.Services.Device.Handler
         #endregion
 
         #region 定时控制
+
+        public bool SendCronTaskCount(int count)
+        {
+            var token = new MessageToken(Command.CronCount);
+            _messageContext.SetToken(token);
+            Outbound outbound = new(Command.CronCount, token, (byte)count);
+            try
+            {
+                _outboxQueue.Add(outbound, _cts.Token);
+                return token.Wait() == MessageStatus.Replied;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
 
         public bool SendCronTask(List<byte> data)
         {
