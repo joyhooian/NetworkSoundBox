@@ -785,20 +785,27 @@ namespace NetworkSoundBox.Services.Device.Handler
             _heartbeatTimer.Dispose();
             _loginTimer.Dispose();
 
-            // 检查设备表中是否有Sn IP Socket与本机相同的设备
-            if (!_deviceContext.DevicePool.TryGetValue(Sn, out var device)) return;
-            if (device.Port != Port || !device.IpAddress.Equals(IpAddress)) return;
-            _logger.LogInformation(LogEvent.DeviceDisconn, $"[{Sn}]Device is removed");
-            _deviceContext.DevicePool.Remove(Sn);
+            try
+            {
+                // 检查设备表中是否有Sn IP Socket与本机相同的设备
+                if (!_deviceContext.DevicePool.TryGetValue(Sn, out var device)) return;
+                if (device.Port != Port || !device.IpAddress.Equals(IpAddress)) return;
+                _logger.LogInformation(LogEvent.DeviceDisconn, $"[{Sn}]Device is removed");
+                _deviceContext.DevicePool.Remove(Sn);
 
-            // 更新最后在线时间
-            using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
-            var de = db.Devices.First(d => d.Sn == Sn);
-            de.LastOnline = DateTime.Now;
-            db.SaveChanges();
+                // 更新最后在线时间
+                using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+                var de = db.Devices.First(d => d.Sn == Sn);
+                de.LastOnline = DateTime.Now;
+                db.SaveChanges();
 
-            // 通知前端掉线消息
-            _notificationContext.SendDeviceOffline(Sn);
+                // 通知前端掉线消息
+                _notificationContext.SendDeviceOffline(Sn);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceDisconn, ex, ex.Message);
+            }
         }
     }
 }
