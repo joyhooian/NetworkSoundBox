@@ -59,10 +59,12 @@ namespace NetworkSoundBox.Middleware.Hubs
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<MySqlDbContext>();
             return (from userDevice in dbContext.UserDevices
-                    join device in dbContext.Devices
-                    on userDevice.DeviceRefrenceId equals device.DeviceReferenceId
-                    where device.Sn == sn
-                    select userDevice.UserRefrenceId).ToList();
+                            join device in dbContext.Devices
+                            on userDevice.DeviceRefrenceId equals device.DeviceReferenceId
+                            join user in dbContext.Users
+                            on userDevice.UserRefrenceId equals user.UserRefrenceId
+                            where device.Sn == sn ||user.Role.Equals(1)
+                            select userDevice.UserRefrenceId).ToList();
         }
     }
 }
