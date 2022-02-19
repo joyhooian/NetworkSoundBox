@@ -336,7 +336,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("DevicesAdmin")]
         public string GetAllDevicesAdmin()
         {
-            var devices = _dbContext.Devices.Take(10).ToList();
+            var devices = _dbContext.Devices.ToList();
             var deviceList = new List<GetDevicesAdminResponse>();
             foreach (var device in devices)
             {
