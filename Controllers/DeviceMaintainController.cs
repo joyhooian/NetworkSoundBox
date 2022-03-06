@@ -260,6 +260,36 @@ namespace NetworkSoundBox.Controllers
             return BadRequest("未知错误");
         }
 
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("unbind")]
+        public IActionResult Unbind([FromQuery] string sn)
+        {
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId) || string.IsNullOrEmpty(sn))
+            {
+                return BadRequest("没有权限");
+            }
+            var device = (from deviceEntity in _dbContext.Devices
+                              join userDevice in _dbContext.UserDevices
+                              on deviceEntity.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                              where userDevice.UserRefrenceId == userReferenceId &&
+                              userDevice.Permission == (int)PermissionType.Admin &&
+                              deviceEntity.Sn == sn
+                              select deviceEntity).ToList().FirstOrDefault();
+            if (device == null)
+            {
+                return BadRequest("没有权限");
+            }
+
+            var deletingUserDevice = from userDevice in _dbContext.UserDevices
+                                     where userDevice.DeviceRefrenceId == device.DeviceReferenceId
+                                     select userDevice;
+            _dbContext.UserDevices.RemoveRange(deletingUserDevice);
+            _dbContext.SaveChanges();
+            return Ok();
+        }
+
         [Authorize(Roles = "admin")]
         [Authorize(Policy = "Permission")]
         [HttpPost("manual_deactive")]
