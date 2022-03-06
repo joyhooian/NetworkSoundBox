@@ -286,7 +286,7 @@ namespace NetworkSoundBox.Controllers
                                      where userDevice.DeviceRefrenceId == device.DeviceReferenceId
                                      select userDevice;
             _dbContext.UserDevices.RemoveRange(deletingUserDevice);
-            device.IsActived = false;
+            device.IsActived = 0;
             _dbContext.Devices.Update(device);
             _dbContext.SaveChanges();
             return Ok();
