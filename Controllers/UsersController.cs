@@ -56,6 +56,43 @@ namespace NetworkSoundBox.Controllers
             return JsonConvert.SerializeObject(dto);
         }
 
+        [HttpPost("dev_login")]
+        public async Task<IActionResult> DevLogin(string loginKey, string role)
+        {
+            if (string.IsNullOrEmpty(role) || string.IsNullOrEmpty(loginKey))
+            {
+                return BadRequest();
+            }
+
+            var userRole = 0;
+            if (role.Contains("admin"))
+            {
+                userRole = 1;
+            }
+            else if (role.Contains("customer"))
+            {
+                userRole= 2;
+            }
+            else
+            {
+                return BadRequest();
+            }
+
+            var userEntity = (from user in _dbContext.Users
+                              where user.Role == userRole &&
+                              user.OpenId == "abcdefg"
+                              select user)
+                              ?.FirstOrDefault();
+            if (userEntity == null)
+            {
+                return NotFound();
+            }
+            var userModel = _mapper.Map<User, UserModel>(userEntity);
+            var jwt = _jwtAppService.Create(userModel, LoginType.Web);
+            await _notificationContext.SendClientLogin(loginKey, jwt.Token);
+            return Ok();
+        }
+
         /// <summary>
         /// 用户扫描登陆二维码后, 通过微信认证用户身份, 通过SignalR通知页面jwt
         /// </summary>

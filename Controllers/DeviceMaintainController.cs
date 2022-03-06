@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Controllers.Model;
 using NetworkSoundBox.Entities;
 using NetworkSoundBox.Middleware.Authorization.Jwt;
@@ -17,11 +11,14 @@ using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode;
 using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode.Model;
 using NetworkSoundBox.Middleware.Hubs;
 using NetworkSoundBox.Middleware.Logger;
-using NetworkSoundBox.Models;
 using NetworkSoundBox.Services.Device.Handler;
-using NetworkSoundBox.Services.Message;
 using Newtonsoft.Json;
 using Nsb.Type;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -286,7 +283,7 @@ namespace NetworkSoundBox.Controllers
                                      where userDevice.DeviceRefrenceId == device.DeviceReferenceId
                                      select userDevice;
             _dbContext.UserDevices.RemoveRange(deletingUserDevice);
-            device.IsActived = false;
+            device.IsActived = 0;
             _dbContext.Devices.Update(device);
             _dbContext.SaveChanges();
             return Ok();

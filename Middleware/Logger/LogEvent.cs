@@ -20,7 +20,8 @@ namespace NetworkSoundBox.Middleware.Logger
         Authorization = 0x40,
 
         DeviceControlApi = 0x50,
-        DeviceMaintainApi
+        DeviceMaintainApi,
+        DeviceGroupApi,
     }
 
     public static class LogEvent
@@ -41,5 +42,6 @@ namespace NetworkSoundBox.Middleware.Logger
 
         public static EventId DeviceControlApi { get; } = new((int)EventEnum.DeviceControlApi, EventEnum.DeviceControlApi.ToString());
         public static EventId DeviceMaintainApi { get; } = new((int) EventEnum.DeviceMaintainApi, EventEnum.DeviceMaintainApi.ToString());
+        public static EventId DeviceGroupApi { get; } = new((int) EventEnum.DeviceGroupApi, EventEnum.DeviceGroupApi.ToString());
     }
 }

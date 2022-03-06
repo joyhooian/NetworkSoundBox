@@ -45,6 +45,8 @@ namespace NetworkSoundBox.Middleware.AutoMap
                 .ForMember(dest => dest.DeviceType, opt => opt.MapFrom(s => ((Nsb.Type.DeviceType)s.Type).ToString().ToLower()))
                 .ForMember(dest => dest.Activation, opt => opt.MapFrom(s => s.IsActived.Equals(1)));
             CreateMap<AddDeviceRequest, Device>().ForMember(dest => dest.Type, opt => opt.MapFrom(s => Enum.Parse(typeof(Nsb.Type.DeviceType), s.DeviceType, true)));
+            CreateMap<Device, DeviceModel>()
+                .ForMember(dest => dest.Type, opt => opt.MapFrom(s => ((Nsb.Type.DeviceType)s.Type).ToString().ToLower()));
             #endregion
         }
     }
