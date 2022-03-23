@@ -36,8 +36,8 @@ namespace NetworkSoundBox.Services.DTO
 
         public void TransferCplt(bool result)
         {
-            _transferSemaphore.Release();
             _transferCpltFlag = result;
+            _transferSemaphore.Release();
         }
     }
 }
