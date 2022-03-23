@@ -324,7 +324,7 @@ namespace NetworkSoundBox.Controllers
                                on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
                                where userDevice.UserRefrenceId == userRefrenceId
                                select device)
-                                   .ToList();
+                               .ToList();
                 var responses = new List<GetDevicesCustomerResponse>();
                 devices.ForEach(device =>
                 {
@@ -340,6 +340,59 @@ namespace NetworkSoundBox.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(LogEvent.DeviceMaintainApi, ex, "While GetDevicesByUser is invoked");
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost]
+        public IActionResult GetDevicesByGroup([FromBody] GetDevicesByGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId))
+            {
+                return BadRequest("请求为空");
+            }
+
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         select deviceGroup)
+                                             .FirstOrDefault();
+                if (deviceGroupEntity == null)
+                {
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
+                }
+
+                var deviceEntities = (from device in _dbContext.Devices
+                                      join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                      on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                                      where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                      select device)
+                                      .ToList();
+                var deviceModels = _mapper.Map<List<Device>, List<GetDevicesCustomerResponse>>(deviceEntities);
+                deviceModels.ForEach(d =>
+                {
+                    if (_deviceContext.DevicePool.ContainsKey(d.Sn))
+                    {
+                        d.IsOnline = true;
+                    }
+                });
+                return Ok(JsonConvert.SerializeObject(deviceModels));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceMaintainApi, ex, "While GetDevicesByGroup is invoked");
                 return BadRequest(ex.Message);
             }
         }

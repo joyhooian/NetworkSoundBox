@@ -42,42 +42,50 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("add_group")]
-        public IActionResult CreateDeviceGroup([FromBody]CreateDeviceGroupRequest request)
+        public IActionResult CreateDeviceGroup([FromBody] CreateDeviceGroupRequest request)
         {
-            if (string.IsNullOrEmpty(request?.Name))
-            {
-                request.Name = new Guid().ToString("N")[..8];
-            }
-
             var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             if (string.IsNullOrEmpty(userReferenceId))
             {
-                return BadRequest();
+                return Forbid();
             }
 
-            var userEntity = (from user in _dbContext.Users
-                              where user.UserRefrenceId == userReferenceId
-                              select user)
-                              .FirstOrDefault();
-            if (userEntity == null)
+            try
             {
-                return NotFound();
-            }
+                if (string.IsNullOrEmpty(request?.Name))
+                {
+                    request.Name = new Guid().ToString("N")[..8];
+                }
 
-            var deviceGroupReferenceId = Guid.NewGuid().ToString();
-            _dbContext.DeviceGroups.Add(new DeviceGroup()
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         where deviceGroup.Name.Equals(request.Name)
+                                         select deviceGroup)
+                                         .FirstOrDefault();
+                if (deviceGroupEntity != null)
+                {
+                    return BadRequest("该名称已占用");
+                }
+
+                var deviceGroupReferenceId = Guid.NewGuid().ToString();
+                _dbContext.DeviceGroups.Add(new DeviceGroup()
+                {
+                    Name = request.Name,
+                    DeviceGroupReferenceId = deviceGroupReferenceId,
+                    UsingStatus = 1
+                });
+                _dbContext.DeviceGroupUsers.Add(new DeviceGroupUser()
+                {
+                    DeviceGroupReferenceId = deviceGroupReferenceId,
+                    UserReferenceId = userReferenceId
+                });
+                _dbContext.SaveChanges();
+                return Ok();
+            }
+            catch (Exception ex)
             {
-                Name = request.Name,
-                DeviceGroupReferenceId = deviceGroupReferenceId,
-                UsingStatus = 1
-            });
-            _dbContext.DeviceGroupUsers.Add(new DeviceGroupUser()
-            {
-                DeviceGroupReferenceId = deviceGroupReferenceId,
-                UserReferenceId = userReferenceId
-            });
-            _dbContext.SaveChanges();
-            return Ok();
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While CreateDeviceGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -92,43 +100,110 @@ namespace NetworkSoundBox.Controllers
         {
             if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId))
             {
-                return BadRequest();
+                return BadRequest("请求为空");
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
-                                     select deviceGroup)
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         select deviceGroup)
                                      .FirstOrDefault();
-            if (deviceGroupEntity == null)
+                if (deviceGroupEntity == null)
+                {
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
+                }
+
+                var deviceGroupDeviceEntities = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                                 where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
+                                                 select deviceGroupDevice)
+                                             ?.ToList();
+                if (deviceGroupDeviceEntities != null && deviceGroupDeviceEntities.Any())
+                {
+                    _dbContext.DeviceGroupDevices.RemoveRange(deviceGroupDeviceEntities);
+                }
+
+                var deviceGroupUserEntities = (from deviceGroupUser in _dbContext.DeviceGroupUsers
+                                               where deviceGroupUser.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
+                                               select deviceGroupUser)
+                                               ?.ToList();
+                if (deviceGroupUserEntities != null && deviceGroupUserEntities.Any())
+                {
+                    _dbContext.DeviceGroupUsers.RemoveRange(deviceGroupUserEntities);
+                }
+
+                _dbContext.DeviceGroups.Remove(deviceGroupEntity);
+                _dbContext.SaveChanges();
+                return Ok();
+            }
+            catch (Exception ex)
             {
-                return NotFound();
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While RemoveDeviceGroup is invoked");
+                return BadRequest(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 更新设备组信息
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("update_group")]
+        public IActionResult UpdateDeviceGroup([FromBody] UpdateDeviceGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId) ||
+                string.IsNullOrEmpty(request?.DeviceGroupName))
+            {
+                return BadRequest("请求为空");
             }
 
-            var deviceGroupDeviceEntities = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                             where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
-                                             select deviceGroupDevice)
-                                     ?.ToList();
-            if (deviceGroupDeviceEntities != null && deviceGroupDeviceEntities.Any())
+            try
             {
-                _dbContext.DeviceGroupDevices.RemoveRange(deviceGroupDeviceEntities);
-            }
+                var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+                if (string.IsNullOrEmpty(userReferenceId))
+                {
+                    return Unauthorized();
+                }
 
-            var deviceGroupUserEntities = (from deviceGroupUser in _dbContext.DeviceGroupUsers
-                                           where deviceGroupUser.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
-                                           select deviceGroupUser)
-                                           ?.ToList();
-            if (deviceGroupUserEntities != null && deviceGroupUserEntities.Any())
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         select deviceGroup)
+                                         .FirstOrDefault();
+                if (deviceGroupEntity == null)
+                {
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
+                }
+
+                if (_dbContext.DeviceGroups.Where(device => device.Name.Equals(request.DeviceGroupName) &&
+                !device.DeviceGroupReferenceId.Equals(deviceGroupEntity.DeviceGroupReferenceId)).Any())
+                {
+                    return BadRequest("名称已占用");
+                }
+
+                deviceGroupEntity.Name = request.DeviceGroupName;
+                _dbContext.DeviceGroups.Update(deviceGroupEntity);
+                _dbContext.SaveChanges();
+                return Ok();
+            }
+            catch (Exception ex)
             {
-                _dbContext.DeviceGroupUsers.RemoveRange(deviceGroupUserEntities);
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While UpdateDeviceGroup is invoked");
+                return BadRequest(ex.Message);
             }
-
-            _dbContext.DeviceGroups.Remove(deviceGroupEntity);
-            _dbContext.SaveChanges();
-            string message = $"移除设备组 DeviceGroupReference id: {deviceGroupEntity}," +
-                $"设备组包含{deviceGroupUserEntities.Count}个设备";
-            _logger.LogInformation(LogEvent.DeviceGroupApi,
-                message);
-            return Ok();
         }
 
         /// <summary>
@@ -139,38 +214,66 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("add_device")]
-        public IActionResult AddDeviceToGroup([FromBody]AddDeviceToGroupRequest request)
+        public IActionResult AddDeviceToGroup([FromBody] AddDeviceToGroupRequest request)
         {
             if (string.IsNullOrEmpty(request?.DeviceGroupReferenceID) ||
                 string.IsNullOrEmpty(request?.DeviceGroupReferenceID))
             {
-                return BadRequest();
+                return BadRequest("请求为空");
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceID
-                                     select deviceGroup)
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceID
+                                         select deviceGroup)
+                                            .FirstOrDefault();
+                if (deviceGroupEntity == null)
+                {
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceID}");
+                }
+
+                var deviceEntity = (from device in _dbContext.Devices
+                                    join userDevice in _dbContext.UserDevices
+                                    on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                    where userDevice.UserRefrenceId == userReferenceId
+                                    where device.DeviceReferenceId == request.DeviceReferenceID
+                                    select device)
                                     .FirstOrDefault();
+                if (deviceEntity == null)
+                {
+                    return NotFound($"找不到设备{request.DeviceReferenceID}");
+                }
 
-            var deviceEntity = (from device in _dbContext.Devices
-                                where device.DeviceReferenceId == request.DeviceReferenceID
-                                select device)
-                                .FirstOrDefault();
+                if (_dbContext.DeviceGroupDevices.Where(dgd => dgd.DeviceReferenceId.Equals(request.DeviceReferenceID) &&
+                dgd.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceID)).Any())
+                {
+                    return Ok();
+                }
 
-            if (deviceGroupEntity == null || deviceEntity == null)
-            {
-                return NotFound();
+                _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
+                {
+                    DeviceGroupReferenceId = request.DeviceGroupReferenceID,
+                    DeviceReferenceId = request.DeviceReferenceID
+                });
+                _dbContext.SaveChanges();
+                return Ok();
             }
-
-            _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
+            catch (Exception ex)
             {
-                DeviceGroupReferenceId = request.DeviceGroupReferenceID,
-                DeviceReferenceId = request.DeviceReferenceID
-            });
-            _dbContext.SaveChanges(true);
-            return Ok();
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While AddDeviceToGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
-
 
         /// <summary>
         /// 添加设备列表到设备组
@@ -180,55 +283,79 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("add_devices")]
-        public IActionResult AddDevicesToGroup([FromBody]AddDevicesToGroupRequest request)
+        public IActionResult AddDevicesToGroup([FromBody] AddDevicesToGroupRequest request)
         {
-            if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId) || 
+            if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId) ||
                 !request.Devices.Any())
             {
                 return BadRequest();
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceId)
-                                     select deviceGroup)
-                                     ?.FirstOrDefault();
-            if (deviceGroupEntity == null)
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
             {
-                return NotFound();
+                return Forbid();
             }
 
-            var response = new AddDevicesToGroupResponse();
-            var deviceEntities = new List<Device>();
-            request.Devices.ForEach(deviceReferenceId =>
+            try
             {
-                var deviceEntity = (from d in _dbContext.Devices
-                                    where d.DeviceReferenceId == deviceReferenceId
-                                    select d)
-                                   .FirstOrDefault();
-                if (deviceEntity == null)
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceId)
+                                         where deviceGroupUser.UserReferenceId.Equals(userReferenceId)
+                                         select deviceGroup)
+                                             ?.FirstOrDefault();
+                if (deviceGroupEntity == null)
                 {
-                    response.SkippedCount++;
-                    response.SkippedDevices.Add(deviceReferenceId);
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
                 }
-                else
-                {
-                    response.SuccessCount++;
-                    deviceEntities.Add(deviceEntity);
-                }
-            });
 
-            var deviceGroupDeviceEntities = new List<DeviceGroupDevice>();
-            deviceEntities.ForEach(d =>
-            {
-                deviceGroupDeviceEntities.Add(new DeviceGroupDevice()
+                var response = new AddDevicesToGroupResponse();
+                var deviceEntities = new List<Device>();
+                request.Devices.ForEach(deviceReferenceId =>
                 {
-                    DeviceReferenceId = d.DeviceReferenceId,
-                    DeviceGroupReferenceId = request.DeviceGroupReferenceId
+                    var deviceEntity = (from d in _dbContext.Devices
+                                        join userDevice in _dbContext.UserDevices
+                                        on d.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                        where d.DeviceReferenceId == deviceReferenceId
+                                        where userDevice.UserRefrenceId == userReferenceId
+                                        select d)
+                                       .FirstOrDefault();
+                    if (deviceEntity == null)
+                    {
+                        response.SkippedCount++;
+                        response.SkippedDevices.Add(deviceReferenceId);
+                    }
+                    else
+                    {
+                        response.SuccessCount++;
+                        deviceEntities.Add(deviceEntity);
+                    }
                 });
-            });
-            _dbContext.DeviceGroupDevices.AddRange(deviceGroupDeviceEntities);
-            _dbContext.SaveChanges();
-            return Ok(JsonConvert.SerializeObject(response));
+
+                var deviceGroupDeviceEntities = new List<DeviceGroupDevice>();
+                deviceEntities.ForEach(d =>
+                {
+                    if (!_dbContext.DeviceGroupDevices.Where(dgd => dgd.DeviceReferenceId.Equals(d) && 
+                    dgd.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceId)).Any())
+                    {
+                        deviceGroupDeviceEntities.Add(new DeviceGroupDevice()
+                        {
+                            DeviceReferenceId = d.DeviceReferenceId,
+                            DeviceGroupReferenceId = request.DeviceGroupReferenceId
+                        });
+                    }
+                });
+                _dbContext.DeviceGroupDevices.AddRange(deviceGroupDeviceEntities);
+                _dbContext.SaveChanges();
+                return Ok(JsonConvert.SerializeObject(response));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While AddDevicesToGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -245,41 +372,57 @@ namespace NetworkSoundBox.Controllers
                 request.Devices == null ||
                 !request.Devices.Any())
             {
-                return BadRequest();
+                return BadRequest("请求为空");
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
-                                     select deviceGroup)?.FirstOrDefault();
-            if (deviceGroupEntity == null)
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
             {
-                return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
+                return Forbid();
             }
 
-            var response = new RemoveDevicesFromGroupResponse();
-            var removingDeviceGroupDeviceEntities = new List<DeviceGroupDevice>();
-            request.Devices.ForEach(d =>
+            try
             {
-                var deviceGroupDeviceEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                         where deviceGroupDevice.DeviceReferenceId == d
-                                         select deviceGroupDevice).FirstOrDefault();
-                if (deviceGroupDeviceEntity == null)
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         select deviceGroup)?.FirstOrDefault();
+                if (deviceGroupEntity == null)
                 {
-                    response.SkippedDevices.Add(d);
-                    response.SkippedCount++;
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
                 }
-                else
+
+                var response = new RemoveDevicesFromGroupResponse();
+                request.Devices.ForEach(d =>
                 {
-                    response.SuccessCount++;
-                    removingDeviceGroupDeviceEntities.Add(deviceGroupDeviceEntity);
-                }
-            });
-            if (removingDeviceGroupDeviceEntities.Any())
-            {
-                _dbContext.DeviceGroupDevices.RemoveRange(removingDeviceGroupDeviceEntities);
+                    var deviceGroupDevicveEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                                    join userDevice in _dbContext.UserDevices
+                                                    on deviceGroupDevice.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                                    where deviceGroupDevice.DeviceReferenceId == d
+                                                    where userDevice.UserRefrenceId == userReferenceId
+                                                    select deviceGroupDevice)
+                                                    .FirstOrDefault();
+                    if (deviceGroupDevicveEntity == null)
+                    {
+                        response.SkippedDevices.Add(d);
+                        response.SkippedCount++;
+                    }
+                    else
+                    {
+                        response.SuccessCount++;
+                        _dbContext.DeviceGroupDevices.Remove(deviceGroupDevicveEntity);
+                    }
+                });
                 _dbContext.SaveChanges();
+                return Ok(JsonConvert.SerializeObject(response));
             }
-            return Ok(JsonConvert.SerializeObject(response));
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While RemoveDevicesFromGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -290,42 +433,62 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("remove_device")]
-        public IActionResult RemoveDeviceFromDeviceGroup([FromBody]RemoveDeviceFromGroupRequest request)
+        public IActionResult RemoveDeviceFromDeviceGroup([FromBody] RemoveDeviceFromGroupRequest request)
         {
             if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId) ||
                 string.IsNullOrEmpty(request?.DeviceReferenceId))
             {
-                return BadRequest();
+                return BadRequest("请求为空");
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
-                                     select deviceGroup)
-                                     ?.FirstOrDefault();
-            if (deviceGroupEntity == null)
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId))
             {
-                return NotFound();
+                return Forbid();
             }
 
-            var deviceEntity = (from device in _dbContext.Devices
-                                where device.DeviceReferenceId == request.DeviceReferenceId
-                                select device)
-                                ?.FirstOrDefault();
-            if (deviceEntity == null)
+            try
             {
-                return NotFound();
-            }
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         select deviceGroup)
+                                             ?.FirstOrDefault();
+                if (deviceGroupEntity == null)
+                {
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
+                }
 
-            var deviceGroupDeviceEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                           where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId &&
-                                           deviceGroupDevice.DeviceReferenceId == request.DeviceReferenceId
-                                           select deviceGroupDevice)
-                                           ?.FirstOrDefault();
-            _dbContext.DeviceGroupDevices.Remove(deviceGroupDeviceEntity);
-            _logger.LogInformation(LogEvent.DeviceGroupApi, 
-                $"已从设备组 {request.DeviceGroupReferenceId} " +
-                $"移除设备 {request.DeviceReferenceId}");
-            return Ok();
+                var deviceEntity = (from device in _dbContext.Devices
+                                    join userDevice in _dbContext.UserDevices
+                                    on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                    where device.DeviceReferenceId == request.DeviceReferenceId
+                                    where userDevice.UserRefrenceId == userReferenceId
+                                    select device)
+                                    ?.FirstOrDefault();
+                if (deviceEntity == null)
+                {
+                    return NotFound($"找不到设备{request.DeviceReferenceId}");
+                }
+
+                var deviceGroupDeviceEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                               where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId &&
+                                               deviceGroupDevice.DeviceReferenceId == request.DeviceReferenceId
+                                               select deviceGroupDevice)
+                                               ?.FirstOrDefault();
+                if (deviceGroupDeviceEntity == null)
+                {
+                    return Ok();
+                }
+
+                _dbContext.DeviceGroupDevices.Remove(deviceGroupDeviceEntity);
+                _dbContext.SaveChanges();
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While RemoveDeviceFromDeviceGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -336,7 +499,7 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("update_devices")]
-        public ActionResult<UpdateDeviceGroupDevicesResponse> UpdateDeviceGroupDevices([FromBody]UpdateDeviceGroupDevicesRequest request)
+        public IActionResult UpdateDeviceGroupDevices([FromBody] UpdateDeviceGroupDevicesRequest request)
         {
             if (request?.DeviceReferenceIds == null ||
                 string.IsNullOrEmpty(request.DeviceGroupReferenceId))
@@ -344,56 +507,63 @@ namespace NetworkSoundBox.Controllers
                 return BadRequest("请求为空");
             }
 
-            var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
-                                     where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
-                                     select deviceGroup)
-                                     .FirstOrDefault();
-            if (deviceGroupEntity == null)
+            try
             {
-                return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
-            }
-
-            var response = new UpdateDeviceGroupDevicesResponse();
-
-            var updatingDeviceReferenceIds = new List<string>();
-            request.DeviceReferenceIds.ForEach(d =>
-            {
-                var deviceEntity = (from device in _dbContext.Devices
-                                    where device.DeviceReferenceId == d
-                                    select device).FirstOrDefault();
-                if (deviceEntity == null)
+                var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+                if (string.IsNullOrEmpty(userReferenceId))
                 {
-                    response.SkippedDeviceReferenceIds.Add(d);
-                    response.SkippedDeviceCount++;
+                    return Unauthorized();
                 }
-                else
+
+                var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
+                                         select deviceGroup)
+                                         .FirstOrDefault();
+                if (deviceGroupEntity == null)
                 {
-                    updatingDeviceReferenceIds.Add(d);
+                    return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
                 }
-            });
-            
-            var updatingDeviceGroupDeviceEntities = new List<DeviceGroupDevice>();
-            updatingDeviceReferenceIds.ForEach(d =>
-            {
-                updatingDeviceGroupDeviceEntities.Add(new DeviceGroupDevice()
+
+                var response = new UpdateDeviceGroupDevicesResponse();
+
+                var currentDeviceGroupDeviceEntities = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                                        where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
+                                                        select deviceGroupDevice)
+                                                        .ToList();
+
+                currentDeviceGroupDeviceEntities.ForEach(c =>
                 {
-                    DeviceGroupReferenceId = request.DeviceGroupReferenceId,
-                    DeviceReferenceId = d
+                    if (_dbContext.UserDevices.Any(ud => ud.DeviceRefrenceId == c.DeviceReferenceId && ud.UserRefrenceId == userReferenceId) &&
+                        !request.DeviceGroupReferenceId.Contains(c.DeviceReferenceId))
+                    {
+                        _dbContext.DeviceGroupDevices.Remove(c);
+                    }
                 });
-            });
 
-            var currentDeviceGroupDeviceEntities = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                                    where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupEntity.DeviceGroupReferenceId
-                                                    select deviceGroupDevice)
-                                                    .ToList();
+                request.DeviceReferenceIds.ForEach(d =>
+                {
+                    if (!currentDeviceGroupDeviceEntities.Any(c => c.DeviceReferenceId == d) &&
+                        _dbContext.UserDevices.Any(ud => ud.DeviceRefrenceId == d && ud.UserRefrenceId == userReferenceId))
+                    {
+                        _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
+                        {
+                            DeviceReferenceId = d,
+                            DeviceGroupReferenceId = request.DeviceGroupReferenceId
+                        });
+                    }
+                });
 
-            if (currentDeviceGroupDeviceEntities.Any())
-            {
-                _dbContext.DeviceGroupDevices.RemoveRange(currentDeviceGroupDeviceEntities);
+                _dbContext.SaveChanges();
+                return Ok();
             }
-            _dbContext.DeviceGroupDevices.AddRange(updatingDeviceGroupDeviceEntities);
-            _dbContext.SaveChanges();
-            return Ok(JsonConvert.SerializeObject(response));
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While UpdateDeviceGroupDevices is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -418,7 +588,7 @@ namespace NetworkSoundBox.Controllers
                                        select deviceGroup)
                                        ?.ToList();
             var response = new List<GetDeviceGroupsByUserResponse>();
-            foreach(var deviceGroup in deviceGroupEntities)
+            foreach (var deviceGroup in deviceGroupEntities)
             {
                 int count = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
                              where deviceGroupDevice.DeviceGroupReferenceId == deviceGroup.DeviceGroupReferenceId
@@ -431,11 +601,11 @@ namespace NetworkSoundBox.Controllers
                     Count = count,
                     CreateTime = deviceGroup.CreatedAt.ToString("G"),
                     UpdateTime = deviceGroup.UpdatedAt.ToString("G"),
-                }) ;
+                });
             }
             return Ok(JsonConvert.SerializeObject(response));
         }
-    
+
 
         /// <summary>
         /// 获取设备组设备及未分组设备
@@ -444,7 +614,7 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("get_device")]
-        public ActionResult<GetDeviceGroupDevicesResponse> GetDeviceGroupDevices([FromBody]GetDeviceGroupDevicesReqeust request)
+        public ActionResult<GetDeviceGroupDevicesResponse> GetDeviceGroupDevices([FromBody] GetDeviceGroupDevicesReqeust request)
         {
             if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId))
             {
