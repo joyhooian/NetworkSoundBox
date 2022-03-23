@@ -55,7 +55,7 @@ namespace NetworkSoundBox.Middleware.Filter
             {
                 if (formFile is not IFormFile file) context.Result = new BadRequestObjectResult("非法文件");
                 else if (file.Length > 1024 * 1024 * 50) context.Result = new BadRequestObjectResult("文件过大");
-                else if (file.ContentType != "audio/mpeg") context.Result = new BadRequestObjectResult("文件格式错误");
+                else if (file.ContentType != "audio/mpeg" || file.ContentType != "audio/mp3") context.Result = new BadRequestObjectResult("文件格式错误");
                 base.OnActionExecuting(context);
             }
             #endregion
