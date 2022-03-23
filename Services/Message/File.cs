@@ -16,7 +16,7 @@ namespace NetworkSoundBox.Services.Message
     public class File
     {
         // Slice file content, every subpackage has FILE_SUBPACKAGE_MODE bytes
-        private const int FILE_SUBPACKEGE_MODE = 255;
+        private const int FILE_SUBPACKEGE_MODE = 1023;
         private readonly List<byte> _content;
         public Semaphore Semaphore { get; } = new Semaphore(0, 1);
         public FileStatus FileStatus { get; set; }
