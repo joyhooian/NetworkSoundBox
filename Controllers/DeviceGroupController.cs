@@ -58,6 +58,9 @@ namespace NetworkSoundBox.Controllers
                 }
 
                 var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
                                          where deviceGroup.Name.Equals(request.Name)
                                          select deviceGroup)
                                          .FirstOrDefault();
@@ -188,8 +191,9 @@ namespace NetworkSoundBox.Controllers
                     return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
                 }
 
-                if (_dbContext.DeviceGroups.Where(device => device.Name.Equals(request.DeviceGroupName) &&
-                !device.DeviceGroupReferenceId.Equals(deviceGroupEntity.DeviceGroupReferenceId)).Any())
+                if (_dbContext.DeviceGroups.Where(device => 
+                            device.Name == request.DeviceGroupName && 
+                            device.DeviceGroupReferenceId != deviceGroupEntity.DeviceGroupReferenceId).Any())
                 {
                     return BadRequest("名称已占用");
                 }
@@ -254,8 +258,9 @@ namespace NetworkSoundBox.Controllers
                     return NotFound($"找不到设备{request.DeviceReferenceID}");
                 }
 
-                if (_dbContext.DeviceGroupDevices.Where(dgd => dgd.DeviceReferenceId.Equals(request.DeviceReferenceID) &&
-                dgd.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceID)).Any())
+                if (_dbContext.DeviceGroupDevices.Where(dgd => 
+                        dgd.DeviceReferenceId == request.DeviceReferenceID &&
+                        dgd.DeviceGroupReferenceId == request.DeviceGroupReferenceID).Any())
                 {
                     return Ok();
                 }
@@ -334,20 +339,19 @@ namespace NetworkSoundBox.Controllers
                     }
                 });
 
-                var deviceGroupDeviceEntities = new List<DeviceGroupDevice>();
                 deviceEntities.ForEach(d =>
                 {
-                    if (!_dbContext.DeviceGroupDevices.Where(dgd => dgd.DeviceReferenceId.Equals(d) && 
-                    dgd.DeviceGroupReferenceId.Equals(request.DeviceGroupReferenceId)).Any())
+                    if (!_dbContext.DeviceGroupDevices.Where(dgd => 
+                            dgd.DeviceReferenceId == d.DeviceReferenceId && 
+                            dgd.DeviceGroupReferenceId == request.DeviceGroupReferenceId).Any())
                     {
-                        deviceGroupDeviceEntities.Add(new DeviceGroupDevice()
+                        _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
                         {
                             DeviceReferenceId = d.DeviceReferenceId,
                             DeviceGroupReferenceId = request.DeviceGroupReferenceId
                         });
                     }
                 });
-                _dbContext.DeviceGroupDevices.AddRange(deviceGroupDeviceEntities);
                 _dbContext.SaveChanges();
                 return Ok(JsonConvert.SerializeObject(response));
             }
@@ -398,10 +402,7 @@ namespace NetworkSoundBox.Controllers
                 request.Devices.ForEach(d =>
                 {
                     var deviceGroupDevicveEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                                    join userDevice in _dbContext.UserDevices
-                                                    on deviceGroupDevice.DeviceReferenceId equals userDevice.DeviceRefrenceId
                                                     where deviceGroupDevice.DeviceReferenceId == d
-                                                    where userDevice.UserRefrenceId == userReferenceId
                                                     select deviceGroupDevice)
                                                     .FirstOrDefault();
                     if (deviceGroupDevicveEntity == null)
@@ -450,7 +451,10 @@ namespace NetworkSoundBox.Controllers
             try
             {
                 var deviceGroupEntity = (from deviceGroup in _dbContext.DeviceGroups
+                                         join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                         on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
                                          where deviceGroup.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                         where deviceGroupUser.UserReferenceId == userReferenceId
                                          select deviceGroup)
                                              ?.FirstOrDefault();
                 if (deviceGroupEntity == null)
@@ -458,23 +462,11 @@ namespace NetworkSoundBox.Controllers
                     return NotFound($"找不到设备组{request.DeviceGroupReferenceId}");
                 }
 
-                var deviceEntity = (from device in _dbContext.Devices
-                                    join userDevice in _dbContext.UserDevices
-                                    on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                                    where device.DeviceReferenceId == request.DeviceReferenceId
-                                    where userDevice.UserRefrenceId == userReferenceId
-                                    select device)
-                                    ?.FirstOrDefault();
-                if (deviceEntity == null)
-                {
-                    return NotFound($"找不到设备{request.DeviceReferenceId}");
-                }
-
                 var deviceGroupDeviceEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                               where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId &&
-                                               deviceGroupDevice.DeviceReferenceId == request.DeviceReferenceId
+                                               where deviceGroupDevice.DeviceReferenceId == request.DeviceReferenceId
+                                               where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId
                                                select deviceGroupDevice)
-                                               ?.FirstOrDefault();
+                                               .FirstOrDefault();
                 if (deviceGroupDeviceEntity == null)
                 {
                     return Ok();
@@ -534,28 +526,23 @@ namespace NetworkSoundBox.Controllers
                                                         select deviceGroupDevice)
                                                         .ToList();
 
-                currentDeviceGroupDeviceEntities.ForEach(c =>
-                {
-                    if (_dbContext.UserDevices.Any(ud => ud.DeviceRefrenceId == c.DeviceReferenceId && ud.UserRefrenceId == userReferenceId) &&
-                        !request.DeviceGroupReferenceId.Contains(c.DeviceReferenceId))
-                    {
-                        _dbContext.DeviceGroupDevices.Remove(c);
-                    }
-                });
+                var deviceEntities = (from device in _dbContext.Devices
+                                      join userDevice in _dbContext.UserDevices
+                                      on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                      where userDevice.UserRefrenceId == userReferenceId
+                                      where request.DeviceReferenceIds.Contains(device.DeviceReferenceId)
+                                      select device)
+                                      .ToList();
 
-                request.DeviceReferenceIds.ForEach(d =>
+                _dbContext.DeviceGroupDevices.RemoveRange(currentDeviceGroupDeviceEntities);
+                deviceEntities.ForEach(device =>
                 {
-                    if (!currentDeviceGroupDeviceEntities.Any(c => c.DeviceReferenceId == d) &&
-                        _dbContext.UserDevices.Any(ud => ud.DeviceRefrenceId == d && ud.UserRefrenceId == userReferenceId))
+                    _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
                     {
-                        _dbContext.DeviceGroupDevices.Add(new DeviceGroupDevice()
-                        {
-                            DeviceReferenceId = d,
-                            DeviceGroupReferenceId = request.DeviceGroupReferenceId
-                        });
-                    }
+                        DeviceReferenceId = device.DeviceReferenceId,
+                        DeviceGroupReferenceId = request.DeviceGroupReferenceId
+                    });
                 });
-
                 _dbContext.SaveChanges();
                 return Ok();
             }
@@ -581,29 +568,37 @@ namespace NetworkSoundBox.Controllers
                 return Unauthorized();
             }
 
-            var deviceGroupEntities = (from deviceGroup in _dbContext.DeviceGroups
-                                       join deviceGroupUser in _dbContext.DeviceGroupUsers
-                                       on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
-                                       where deviceGroupUser.UserReferenceId == userReferenceId
-                                       select deviceGroup)
-                                       ?.ToList();
-            var response = new List<GetDeviceGroupsByUserResponse>();
-            foreach (var deviceGroup in deviceGroupEntities)
+            try
             {
-                int count = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                             where deviceGroupDevice.DeviceGroupReferenceId == deviceGroup.DeviceGroupReferenceId
-                             select deviceGroupDevice)
-                             .Count();
-                response.Add(new GetDeviceGroupsByUserResponse()
+                var deviceGroupEntities = (from deviceGroup in _dbContext.DeviceGroups
+                                           join deviceGroupUser in _dbContext.DeviceGroupUsers
+                                           on deviceGroup.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                                           where deviceGroupUser.UserReferenceId == userReferenceId
+                                           select deviceGroup)
+                                               ?.ToList();
+                var response = new List<GetDeviceGroupsByUserResponse>();
+                foreach (var deviceGroup in deviceGroupEntities)
                 {
-                    DeviceGroupReferenceId = deviceGroup.DeviceGroupReferenceId,
-                    Name = deviceGroup.Name,
-                    Count = count,
-                    CreateTime = deviceGroup.CreatedAt.ToString("G"),
-                    UpdateTime = deviceGroup.UpdatedAt.ToString("G"),
-                });
+                    int count = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                 where deviceGroupDevice.DeviceGroupReferenceId == deviceGroup.DeviceGroupReferenceId
+                                 select deviceGroupDevice)
+                                 .Count();
+                    response.Add(new GetDeviceGroupsByUserResponse()
+                    {
+                        DeviceGroupReferenceId = deviceGroup.DeviceGroupReferenceId,
+                        Name = deviceGroup.Name,
+                        Count = count,
+                        CreateTime = deviceGroup.CreatedAt.ToString("G"),
+                        UpdateTime = deviceGroup.UpdatedAt.ToString("G"),
+                    });
+                }
+                return Ok(JsonConvert.SerializeObject(response));
             }
-            return Ok(JsonConvert.SerializeObject(response));
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While GetDeviceGroupsByUser is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
 
@@ -629,25 +624,33 @@ namespace NetworkSoundBox.Controllers
 
             var response = new GetDeviceGroupDevicesResponse();
 
-            var deviceEntityFromGroup = (from device in _dbContext.Devices
-                                         join deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                         on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
-                                         where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId
-                                         select device)
-                                         .ToList();
-            response.DeviceFromGroup = _mapper.Map<List<Device>, List<DeviceModel>>(deviceEntityFromGroup);
-
-            if (request.IsIncludeOtherDevice.HasValue && request.IsIncludeOtherDevice.Value)
+            try
             {
-                var deviceEntityExcluded = (from device in _dbContext.Devices
-                                            join userDevice in _dbContext.UserDevices
-                                            on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                                            where userDevice.UserRefrenceId == userReferenceId
-                                            select device)
-                                            .Where(d => !deviceEntityFromGroup.Contains(d)).ToList();
-                response.DeviceExcluded = _mapper.Map<List<Device>, List<DeviceModel>>(deviceEntityExcluded);
+                var deviceEntityFromGroup = (from device in _dbContext.Devices
+                                             join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                             on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                                             where deviceGroupDevice.DeviceGroupReferenceId == request.DeviceGroupReferenceId
+                                             select device)
+                                                 .ToList();
+                response.DeviceFromGroup = _mapper.Map<List<Device>, List<DeviceModel>>(deviceEntityFromGroup);
+
+                if (request.IsIncludeOtherDevice.HasValue && request.IsIncludeOtherDevice.Value)
+                {
+                    var deviceEntityExcluded = (from device in _dbContext.Devices
+                                                join userDevice in _dbContext.UserDevices
+                                                on device.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                                                where userDevice.UserRefrenceId == userReferenceId
+                                                select device)
+                                                .Where(d => !deviceEntityFromGroup.Contains(d)).ToList();
+                    response.DeviceExcluded = _mapper.Map<List<Device>, List<DeviceModel>>(deviceEntityExcluded);
+                }
+                return Ok(JsonConvert.SerializeObject(response));
             }
-            return Ok(JsonConvert.SerializeObject(response));
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceGroupApi, ex, "While GetDeviceGroupDevices is invoked");
+                return BadRequest(ex.Message);
+            }
         }
     }
 }

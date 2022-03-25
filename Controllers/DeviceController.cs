@@ -1,4 +1,20 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Controllers.Model;
+using NetworkSoundBox.Entities;
+using NetworkSoundBox.Middleware.Filter;
+using NetworkSoundBox.Middleware.Hubs;
+using NetworkSoundBox.Middleware.Logger;
+using NetworkSoundBox.Services.Device.Handler;
+using NetworkSoundBox.Services.DTO;
+using NetworkSoundBox.Services.Message;
+using NetworkSoundBox.Services.TextToSpeech;
+using Newtonsoft.Json;
+using Nsb.Type;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,19 +22,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using NetworkSoundBox.Controllers.DTO;
-using NetworkSoundBox.Middleware.Filter;
-using NetworkSoundBox.Middleware.Hubs;
-using NetworkSoundBox.Services.Device.Handler;
-using NetworkSoundBox.Services.DTO;
-using NetworkSoundBox.Services.Message;
-using NetworkSoundBox.Services.TextToSpeech;
-using Microsoft.Extensions.Logging;
-using Nsb.Type;
-using NetworkSoundBox.Entities;
+using static NetworkSoundBox.Controllers.Model.FailureDevice;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -115,6 +119,64 @@ namespace NetworkSoundBox.Controllers
         }
 
         /// <summary>
+        /// 设备组控制播放暂停
+        /// </summary>
+        /// <param name="request">DeviceGroupReferenceId:String Action:Int(1:播放，2:暂停)</param>
+        /// <returns></returns>
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("play_pause_group")]
+        public IActionResult PlayOrPauseGroup([FromBody] PlayOrPauseGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request.DeviceGroupReferenceId) || 
+                (request.Action != 1 && request.Action != 2))
+            {
+                return BadRequest("非法请求");
+            }
+
+            var userReferenceId = GetUserReferenceId();
+            if (string.IsNullOrEmpty(userReferenceId))
+            {
+                return Forbid();
+            }
+
+            var response = new PlayOrPauseGroupResponse();
+            try
+            {
+
+                var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferenceId);
+
+                deviceEntities.ForEach(deviceEntity =>
+                {
+                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    {
+                        if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
+                        {
+                            response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.PermissionDenied));
+                        }
+                        else
+                        {
+                            if (!device.SendPlayOrPause(request.Action))
+                            {
+                                response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.DeviceNoResponed));
+                            }
+                            else
+                            {
+                                response.SuccessDevices.Add(new SuccessDevice(deviceEntity, null));
+                            }
+                        }
+                    }
+                });
+                return Ok(JsonConvert.SerializeObject(response));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceControlApi, ex, "While PlayOrPauseGroup is invoked");
+                return BadRequest(ex.Message);
+            }
+        }
+
+        /// <summary>
         /// 上一首或下一首
         /// </summary>
         /// <param name="sn">SN</param>
@@ -131,6 +193,65 @@ namespace NetworkSoundBox.Controllers
             return device.SendNextOrPrevious(action) ? Ok() : BadRequest("设备未响应");
         }
 
+
+        /// <summary>
+        /// 设备组下一首或上一首
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("next_previous_group")]
+        public IActionResult NextOrPreviousGroup([FromBody] NextOrPreviousGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request.DeviceGroupReferenceId) ||
+                (request.Action != 1 && request.Action != 2))
+            {
+                return BadRequest("非法请求");
+            }
+
+            var userReferencecId = GetUserReferenceId();
+            if (string.IsNullOrEmpty(userReferencecId))
+            {
+                return Forbid();
+            }
+
+            var response = new NextOrPreviousGroupResponse();
+
+            try
+            {
+                var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferencecId);
+                deviceEntities.ForEach(deviceEntity =>
+                {
+                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    {
+                        if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
+                        {
+                            response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.PermissionDenied));
+                        }
+                        else
+                        {
+
+                            if (device.SendNextOrPrevious(request.Action))
+                            {
+                                response.SuccessDevices.Add(new SuccessDevice(deviceEntity, null));
+                            }
+                            else
+                            {
+                                response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.DeviceNoResponed));
+                            }
+                        }
+                    }
+                });
+                return Ok(JsonConvert.SerializeObject(response));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceControlApi, ex, "While NextOrPreviousGroup is invoked");
+                return BadRequest(ex.Message);
+            }
+        }
+
         /// <summary>
         /// 设备音量
         /// </summary>
@@ -145,6 +266,58 @@ namespace NetworkSoundBox.Controllers
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.SendVolume(volume) ? Ok() : BadRequest("设备未响应");
+        }
+
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("volume_group")]
+        public IActionResult VolumeGroup([FromBody] VolumeGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request.DeviceGroupReferenceId) ||
+                request.Action < 0 || request.Action > 30)
+            {
+                return BadRequest("非法请求");
+            }
+
+            var userReferenceId = GetUserReferenceId();
+            if (string.IsNullOrEmpty(userReferenceId))
+            {
+                return Forbid();
+            }
+
+            var response = new VolumeGroupResponse();
+
+            try
+            {
+                var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferenceId);
+                deviceEntities.ForEach(deviceEntity =>
+                {
+                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    {
+                        if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
+                        {
+                            response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.PermissionDenied));
+                        }
+                        else
+                        {
+                            if (!device.SendVolume(request.Action))
+                            {
+                                response.FailureDevices.Add(new FailureDevice(deviceEntity, FailureType.DeviceNoResponed));
+                            }
+                            else
+                            {
+                                response.SuccessDevices.Add(new SuccessDevice(deviceEntity, null));
+                            }
+                        }
+                    }
+                });
+                return Ok(JsonConvert.SerializeObject(response));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(LogEvent.DeviceControlApi, ex, "While VolumeGroup is invoked");
+                return BadRequest(ex.Message);
+            }
         }
 
         /// <summary>
@@ -504,6 +677,24 @@ namespace NetworkSoundBox.Controllers
                 .Select(ud => ud.Permission)
                 .FirstOrDefault();
             return permission <= (int)limit;
+        }
+
+        private List<Device> GetGroupDevices(string deviceGroupReferenceId, string userReferenceId)
+        {
+            return (from device in _dbContext.Devices
+                    join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                    on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                    join deviceGroupUser in _dbContext.DeviceGroupUsers
+                    on deviceGroupDevice.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                    where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                    where deviceGroupUser.UserReferenceId == userReferenceId
+                    select device)
+                    .ToList();
+        }
+
+        private string GetUserReferenceId()
+        {
+            return HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         }
     }
 }

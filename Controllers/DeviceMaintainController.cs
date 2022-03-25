@@ -346,7 +346,7 @@ namespace NetworkSoundBox.Controllers
 
         [Authorize]
         [Authorize(Policy = "Permission")]
-        [HttpPost]
+        [HttpPost("device_group")]
         public IActionResult GetDevicesByGroup([FromBody] GetDevicesByGroupRequest request)
         {
             if (string.IsNullOrEmpty(request?.DeviceGroupReferenceId))
