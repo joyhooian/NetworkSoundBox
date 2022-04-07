@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NetworkSoundBox.Services.DTO
+namespace NetworkSoundBox.Services.Model
 {
     public class AudioTrxModel
     {

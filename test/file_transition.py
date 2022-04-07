@@ -25,8 +25,8 @@ def Main():
     deviceCode = 0x00
     # endregion
     
-    target = 'server'
-    # target = 'local'
+    # target = 'server'
+    target = 'local'
     # deviceType = '4G'
     deviceType = 'WiFi'
     # sn = '0065a0fa'
@@ -41,7 +41,7 @@ def Main():
         sn = '02387448'
         deviceCode = 0x11
     else:
-        sn = '00000001'
+        sn = '00eff4ea'
         deviceCode = 0x01
     #endregion
     

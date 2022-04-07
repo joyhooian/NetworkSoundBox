@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using NetworkSoundBox.Services.DTO;
+using NetworkSoundBox.Services.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
