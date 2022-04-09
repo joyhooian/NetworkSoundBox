@@ -40,12 +40,15 @@ namespace NetworkSoundBox.Middleware.Authorization.Wechat.QRCode
                     return null;
                 }
 
-                string uri = $"https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token={wechatToken.Token}";
+                    string uri = $"https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token={wechatToken.Token}";
                 string loginKey = Guid.NewGuid().ToString("N");
                 string json = JsonConvert.SerializeObject(new WechatQrRequest
                 {
                     Scene = loginKey,
-                    Page = "pages/myself/login"
+                    Page = "pages/myself/web_auth",
+                    //Page = "pages/myself/login",
+                    CheckPath = false,
+                    EnVersion = "develop"
                 });
                 var responce = await _httpClientFactory.CreateClient().PostAsync(uri, new StringContent(json));
                 responce.EnsureSuccessStatusCode();

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
@@ -57,6 +58,12 @@ namespace NetworkSoundBox.Controllers
             return JsonConvert.SerializeObject(dto);
         }
 
+        /// <summary>
+        /// 调试登录
+        /// </summary>
+        /// <param name="loginKey"></param>
+        /// <param name="role"></param>
+        /// <returns></returns>
         [HttpPost("dev_login")]
         public async Task<IActionResult> DevLogin(string loginKey, string role)
         {
@@ -95,6 +102,46 @@ namespace NetworkSoundBox.Controllers
         }
 
         /// <summary>
+        /// 检查登录态
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost("check_login")]
+        public IActionResult CheckLogin()
+        {
+            return Ok(_jwtAppService.IsCurrentActiveToken());
+        }
+
+        /// <summary>
+        /// 更新用户资料
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("update_profile")]
+        public IActionResult UpdateProfile([FromBody] UpdateProfileRequest request)
+        {
+            if (request == null) return BadRequest();
+
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (string.IsNullOrEmpty(userReferenceId)) return Forbid();
+
+            var userEntity = _dbContext.Users.FirstOrDefault(u => u.UserRefrenceId == userReferenceId);
+            if (userEntity == null) return BadRequest("找不到用户");
+
+            if (!string.IsNullOrEmpty(request.Name)) userEntity.Name = request.Name;
+            if (!string.IsNullOrEmpty(request.AvatarUrl) && 
+                Regex.IsMatch(request.AvatarUrl, @"^http(s)?://([\w-]+\.)+[\w-]+(/[\w- ./?%&=]*)?$"))
+            {
+                userEntity.AvatarUrl = request.AvatarUrl;
+            }
+            _dbContext.Users.Update(userEntity);
+            _dbContext.SaveChanges();
+
+            return Ok();
+        }
+
+        /// <summary>
         /// 用户扫描登陆二维码后, 通过微信认证用户身份, 通过SignalR通知页面jwt
         /// </summary>
         /// <param name="code"></param>
@@ -114,7 +161,7 @@ namespace NetworkSoundBox.Controllers
             if (_notificationContext.ClientDict.ContainsKey(loginKey))
             {
                 await _notificationContext.SendClientLogin(loginKey, jwt.Token);
-                return Ok();
+                return Ok("成功");
             }
             return BadRequest("请重试");
         }
@@ -163,6 +210,44 @@ namespace NetworkSoundBox.Controllers
             var wxLoginResponse = _mapper.Map<UserModel, WxLoginResponse>(userModel);
             wxLoginResponse.Token = jwt.Token;
             return Ok(JsonConvert.SerializeObject(wxLoginResponse));
+        }
+
+        /// <summary>
+        /// 微信登录
+        /// </summary>
+        /// <param name="code"></param>
+        /// <returns></returns>
+        [HttpPost("wechat_login")]
+        public async Task<IActionResult> WechatLogin([FromQuery] string code)
+        {
+            string openId = await _wxLoginService.GetWechatOpenId(code);
+            if (string.IsNullOrEmpty(openId)) return BadRequest("登陆失败");
+
+            var userEntity = _dbContext.Users.FirstOrDefault(u => u.OpenId == openId);
+            if (userEntity == null)
+            {
+                userEntity = new User()
+                {
+                    Name = string.Empty,
+                    OpenId = openId,
+                    AvatarUrl = string.Empty,
+                    UserRefrenceId = Guid.NewGuid().ToString(),
+                    Role = (int)RoleType.Customer
+                };
+                _dbContext.Users.Add(userEntity);
+                _dbContext.SaveChanges();
+            }
+
+            var userModel = _mapper.Map<User, UserModel>(userEntity);
+            var jwt = _jwtAppService.Create(userModel, LoginType.WeApp);
+
+            return Ok(JsonConvert.SerializeObject(
+                new
+                {
+                    userEntity.Name,
+                    userEntity.AvatarUrl,
+                    jwt.Token
+                }));
         }
 
         /// <summary>
