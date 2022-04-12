@@ -48,7 +48,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Wechat.QRCode
                     Page = "pages/myself/web_auth",
                     //Page = "pages/myself/login",
                     CheckPath = false,
-                    EnVersion = "develop"
+                    EnVersion = "trial"
                 });
                 var responce = await _httpClientFactory.CreateClient().PostAsync(uri, new StringContent(json));
                 responce.EnsureSuccessStatusCode();

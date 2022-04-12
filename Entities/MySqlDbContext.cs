@@ -17,9 +17,12 @@ namespace NetworkSoundBox.Entities
         {
         }
 
+        public virtual DbSet<Audio> Audios { get; set; }
+        public virtual DbSet<Cloud> Clouds { get; set; }
         public virtual DbSet<CronTask> CronTasks { get; set; }
         public virtual DbSet<DelayTask> DelayTasks { get; set; }
         public virtual DbSet<Device> Devices { get; set; }
+        public virtual DbSet<DeviceAudio> DeviceAudios { get; set; }
         public virtual DbSet<DeviceGroup> DeviceGroups { get; set; }
         public virtual DbSet<DeviceGroupDevice> DeviceGroupDevices { get; set; }
         public virtual DbSet<DeviceGroupUser> DeviceGroupUsers { get; set; }
@@ -34,7 +37,7 @@ namespace NetworkSoundBox.Entities
             if (!optionsBuilder.IsConfigured)
             {
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
-                optionsBuilder.UseMySql("server=8.130.51.198;database=NSB;user=root;password=!RXchtgH*uqeFir@FGzTy_6v", Microsoft.EntityFrameworkCore.ServerVersion.Parse("5.7.36-mysql"));
+                optionsBuilder.UseMySql("server=8.130.51.198;userid=root;password=!RXchtgH*uqeFir@FGzTy_6v;database=NSB", Microsoft.EntityFrameworkCore.ServerVersion.Parse("5.7.36-mysql"));
             }
         }
 
@@ -42,6 +45,100 @@ namespace NetworkSoundBox.Entities
         {
             modelBuilder.HasCharSet("utf8")
                 .UseCollation("utf8_general_ci");
+
+            modelBuilder.Entity<Audio>(entity =>
+            {
+                entity.HasKey(e => e.AudioKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("Audio");
+
+                entity.Property(e => e.AudioKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("audioKey");
+
+                entity.Property(e => e.AudioName)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioName");
+
+                entity.Property(e => e.AudioPath)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioPath");
+
+                entity.Property(e => e.AudioReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioReferenceId");
+
+                entity.Property(e => e.CloudReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("cloudReferenceId");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.Duration)
+                    .HasColumnType("time")
+                    .HasColumnName("duration");
+
+                entity.Property(e => e.IsCached)
+                    .IsRequired()
+                    .HasMaxLength(1)
+                    .HasColumnName("isCached")
+                    .IsFixedLength(true);
+
+                entity.Property(e => e.Size)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("size");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<Cloud>(entity =>
+            {
+                entity.HasKey(e => e.CloudKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("Cloud");
+
+                entity.Property(e => e.CloudKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("cloudKey");
+
+                entity.Property(e => e.Capacity)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("capacity");
+
+                entity.Property(e => e.CloudReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("cloudReferenceId");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UserReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userReferenceId");
+            });
 
             modelBuilder.Entity<CronTask>(entity =>
             {
@@ -184,6 +281,43 @@ namespace NetworkSoundBox.Entities
                     .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<DeviceAudio>(entity =>
+            {
+                entity.HasKey(e => e.DeviceAudioKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("DeviceAudio");
+
+                entity.Property(e => e.DeviceAudioKey)
+                    .HasColumnType("int(11)")
+                    .ValueGeneratedNever()
+                    .HasColumnName("deviceAudioKey");
+
+                entity.Property(e => e.AudioReferenceId)
+                    .HasMaxLength(255)
+                    .HasColumnName("audioReferenceId");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.DeviceReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("deviceReferenceId");
+
+                entity.Property(e => e.Index)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("index");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
