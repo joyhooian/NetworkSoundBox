@@ -25,6 +25,7 @@ namespace NetworkSoundBox.Middleware.AutoMap
             CreateMap<sbyte, bool>().ConvertUsing(s => s != 0);
             #region New Model-Entity Mapping
             CreateMap<UserModel, User>().ReverseMap();
+            CreateMap<AudioModel, Audio>().ReverseMap();
             #endregion
 
             #region Controller Model Mapping

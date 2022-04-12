@@ -45,7 +45,10 @@ namespace NetworkSoundBox.Middleware.Authorization.Wechat.QRCode
                 string json = JsonConvert.SerializeObject(new WechatQrRequest
                 {
                     Scene = loginKey,
-                    Page = "pages/myself/login"
+                    Page = "pages/myself/web_auth",
+                    //Page = "pages/myself/login",
+                    CheckPath = false,
+                    EnVersion = "trial"
                 });
                 var responce = await _httpClientFactory.CreateClient().PostAsync(uri, new StringContent(json));
                 responce.EnsureSuccessStatusCode();
