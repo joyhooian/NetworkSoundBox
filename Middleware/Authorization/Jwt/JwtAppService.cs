@@ -162,6 +162,7 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
             {
                 if (jwt.ExpireAt < DateTime.UtcNow)
                 {
+                    Deactive(token);
                     return null;
                 }
                 return jwt;
