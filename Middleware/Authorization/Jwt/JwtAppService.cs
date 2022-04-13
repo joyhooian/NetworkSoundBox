@@ -160,6 +160,10 @@ namespace NetworkSoundBox.Middleware.Authorization.Jwt
         {
             if (_tokensDict.TryGetValue(token, out var jwt))
             {
+                if (jwt.ExpireAt < DateTime.UtcNow)
+                {
+                    return null;
+                }
                 return jwt;
             }
             return null;
