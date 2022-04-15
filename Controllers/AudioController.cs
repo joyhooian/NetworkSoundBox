@@ -58,7 +58,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("add_audio")]
         public async Task<IActionResult> AddAudio([FromBody] AddAudioRequest request)
         {
-            if (request?.FormFile == null || request.FormFile.Length <= 0) 
+            if (request?.file == null || request.file.Length <= 0) 
             {
                 return BadRequest("请求为空");
             }
@@ -69,7 +69,7 @@ namespace NetworkSoundBox.Controllers
                 return Forbid();
             }
 
-            var formFile = request.FormFile;
+            var formFile = request.file;
             if (_acceptAudioTypes.All(t => !t.Equals(formFile.ContentType, StringComparison.CurrentCulture)))
             {
                 return BadRequest($"不支持的格式{formFile.ContentType}");

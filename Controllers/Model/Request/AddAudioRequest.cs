@@ -4,6 +4,6 @@ namespace NetworkSoundBox.Controllers.Model.Request
 {
     public class AddAudioRequest
     {
-        public IFormFile FormFile { get; set; }
+        public IFormFile file { get; set; }
     }
 }
