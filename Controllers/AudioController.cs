@@ -116,7 +116,7 @@ namespace NetworkSoundBox.Controllers
                 var content = new byte[formFile.Length];
                 await formFile.OpenReadStream().ReadAsync(content);
 
-                var friendlyFileName = formFile.Name.Replace(' ', '_');
+                var friendlyFileName = formFile.FileName.Replace(' ', '_');
                 var filePath = $"{_audioRootPath}/{userReferenceId}/{friendlyFileName}";
                 using (var fileStream = System.IO.File.Create(filePath))
                 {
