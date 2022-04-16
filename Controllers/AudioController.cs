@@ -10,8 +10,6 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Threading.Tasks;
-using NAudio;
-using NAudio.Wave;
 using Newtonsoft.Json;
 using AutoMapper;
 using NetworkSoundBox.Models;
@@ -126,19 +124,12 @@ namespace NetworkSoundBox.Controllers
                     fileStream.Close();
                 }
 
-                var duration = new TimeSpan();
-                using (var audioFileReader = new AudioFileReader(fullPath))
-                {
-                    duration = audioFileReader.TotalTime;
-                }
-
                 audioEntity = new Audio
                 {
                     AudioReferenceId = Guid.NewGuid().ToString(),
                     CloudReferenceId = cloudEntity.CloudReferenceId,
                     AudioPath = $"/{userReferenceId}/{friendlyFileName}",
                     AudioName = friendlyFileName,
-                    Duration = duration,
                     Size = Convert.ToInt32(formFile.Length)
                 };
                 _dbContext.Audios.Add(audioEntity);
