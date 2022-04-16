@@ -43,8 +43,7 @@ namespace NetworkSoundBox.Controllers
             _dbContext = dbContext;
             _logger = logger;
             _mapper = mapper;
-
-            _acceptAudioTypes = _configuration.GetSection("AcceptAudioTypes") as List<string>;
+            _acceptAudioTypes = _configuration["AcceptAudioTypes"].Split(',').ToList();
             _audioRootPath = _configuration["AudioRootPath"];
         }
 
