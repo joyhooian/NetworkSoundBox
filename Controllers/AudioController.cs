@@ -117,15 +117,17 @@ namespace NetworkSoundBox.Controllers
                 await formFile.OpenReadStream().ReadAsync(content);
 
                 var friendlyFileName = formFile.FileName.Replace(' ', '_');
-                var filePath = $"{_audioRootPath}/{userReferenceId}/{friendlyFileName}";
-                using (var fileStream = System.IO.File.Create(filePath))
+                var path = $"{_audioRootPath}/{userReferenceId.Replace('-', '_')}";
+                if (!System.IO.Directory.Exists(path)) System.IO.Directory.CreateDirectory(path);
+                var fullPath = $"{path}/{friendlyFileName}";
+                using (var fileStream = System.IO.File.Create(fullPath))
                 {
                     fileStream.Write(content);
                     fileStream.Close();
                 }
 
                 var duration = new TimeSpan();
-                using (var audioFileReader = new AudioFileReader(filePath))
+                using (var audioFileReader = new AudioFileReader(fullPath))
                 {
                     duration = audioFileReader.TotalTime;
                 }
