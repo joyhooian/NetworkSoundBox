@@ -40,7 +40,7 @@ namespace NetworkSoundBox.Services.Audios
         {
             _task = Task.Run(async () =>
             {
-                Console.Write($"Audio Processing Task Running at {DateTime.Now.ToLocalTime()}");
+                Console.WriteLine($"Audio Processing Task Running at {DateTime.Now.ToLocalTime()}");
                 while (_audioCloudDtoQueue.TryTake(out var audioProcessDto))
                 {
                     var token = audioProcessDto.AudioProcessToken;
