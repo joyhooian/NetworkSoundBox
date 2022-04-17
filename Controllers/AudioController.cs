@@ -14,6 +14,10 @@ using Newtonsoft.Json;
 using AutoMapper;
 using NetworkSoundBox.Models;
 using NetworkSoundBox.Controllers.Model.Response;
+using System.Collections.Concurrent;
+using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Services.Audios;
+using NetworkSoundBox.Services.DTO;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -28,6 +32,7 @@ namespace NetworkSoundBox.Controllers
 
         private readonly List<string> _acceptAudioTypes;
         private readonly string _audioRootPath;
+        private readonly ConcurrentDictionary<string, AudioProcessor> _audioProcessingDict = new();
 
         private string UserReferenceId { get =>  GetUser(); }
 
@@ -53,7 +58,7 @@ namespace NetworkSoundBox.Controllers
         [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("add_audio")]
-        public async Task<IActionResult> AddAudio(IFormFile file)
+        public IActionResult AddAudio(IFormFile file)
         {
             if (file == null || file.Length <= 0) 
             {
@@ -78,68 +83,30 @@ namespace NetworkSoundBox.Controllers
 
             try
             {
-                var audioEntity = (from audio in _dbContext.Audios
-                                   join cloud in _dbContext.Clouds
-                                   on audio.CloudReferenceId equals cloud.CloudReferenceId
-                                   where cloud.UserReferenceId == userReferenceId
-                                   where audio.AudioName == formFile.FileName
-                                   select audio).FirstOrDefault();
-                if (audioEntity != null)
+                AudioProcessReultToken token = new AudioProcessReultToken();
+                _audioProcessingDict.AddOrUpdate(userReferenceId,
+                (key) =>
                 {
-                    return BadRequest($"文件名重复");
-                }
-
-                var cloudEntity = (from cloud in _dbContext.Clouds
-                                   where cloud.UserReferenceId == userReferenceId
-                                   select cloud).FirstOrDefault();
-                if (cloudEntity == null)
-                {
-                    cloudEntity = new Cloud
+                    var audioProcessor = new AudioProcessor(_dbContext, _audioProcessingDict, userReferenceId);
+                    audioProcessor.AddAudioProcess(new AudioProcessDto()
                     {
-                        UserReferenceId = userReferenceId,
-                        CloudReferenceId = Guid.NewGuid().ToString(),
-                        Capacity = 20
-                    };
-                    _dbContext.Clouds.Add(cloudEntity);
-                    _dbContext.SaveChanges();
-                }
-                else
+                        AudioProcessToken = token,
+                        FormFile = formFile,
+                        RootPath = _audioRootPath,
+                    });
+                    return audioProcessor;
+                },
+                (key, value) =>
                 {
-                    if (!CheckCapacity())
+                    value.AddAudioProcess(new AudioProcessDto()
                     {
-                        return BadRequest("容量已满, 请删除不用的文件或扩容");
-                    }
-                }
-
-                var content = new byte[formFile.Length];
-                await formFile.OpenReadStream().ReadAsync(content);
-
-                var friendlyFileName = formFile.FileName.Replace(' ', '_');
-                var path = $"{_audioRootPath}/{userReferenceId.Replace('-', '_')}";
-                if (!System.IO.Directory.Exists(path)) System.IO.Directory.CreateDirectory(path);
-                var fullPath = $"{path}/{friendlyFileName}";
-                using (var fileStream = System.IO.File.Create(fullPath))
-                {
-                    fileStream.Write(content);
-                    fileStream.Close();
-                }
-
-                audioEntity = new Audio
-                {
-                    AudioReferenceId = Guid.NewGuid().ToString(),
-                    CloudReferenceId = cloudEntity.CloudReferenceId,
-                    AudioPath = $"/{userReferenceId}/{friendlyFileName}",
-                    AudioName = friendlyFileName,
-                    Size = Convert.ToInt32(formFile.Length)
-                };
-                _dbContext.Audios.Add(audioEntity);
-                _dbContext.SaveChanges();
-                return Ok(JsonConvert.SerializeObject(new
-                {
-                    audioEntity.AudioName,
-                    audioEntity.Duration,
-                    audioEntity.Size,
-                }));
+                        AudioProcessToken = token,
+                        FormFile = formFile,
+                        RootPath = _audioRootPath,
+                    });
+                    return value;
+                });
+                return token.WaitResult();
             }
             catch (Exception ex)
             {
@@ -315,26 +282,16 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        private bool CheckCapacity()
-        {
-            var userReferenceId = GetUser();
-            if (userReferenceId == null) return false;
 
-            var usedCount = (from audio in _dbContext.Audios
-                            join cloud in _dbContext.Clouds 
-                            on audio.CloudReferenceId equals cloud.CloudReferenceId
-                            where cloud.UserReferenceId == userReferenceId
-                            where audio.IsCached == "Y"
-                            select audio).Count();
-            var capacity = (from cloud in _dbContext.Clouds
-                           where cloud.UserReferenceId == userReferenceId
-                           select cloud.Capacity).FirstOrDefault();
-            return usedCount < capacity;
-        }
 
         private string GetUser()
         {
             return HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+        }
+
+        private void ProcessingUploads()
+        {
+
         }
     }
 }
