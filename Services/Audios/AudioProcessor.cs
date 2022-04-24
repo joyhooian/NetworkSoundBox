@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 namespace NetworkSoundBox.Services.Audios
 {
@@ -14,33 +16,37 @@ namespace NetworkSoundBox.Services.Audios
     {
         private readonly ConcurrentDictionary<string, AudioProcessor> _audioDict;
         private readonly BlockingCollection<AudioProcessDto> _audioCloudDtoQueue = new();
-        private readonly MySqlDbContext _dbContext;
         private Task _task;
         private string _userReferenceId;
+        public string HashId { get; set; } = Guid.NewGuid().ToString();
 
         public AudioProcessor(
-            MySqlDbContext dbContext, 
             ConcurrentDictionary<string, AudioProcessor> audioDict,
             string userReferenceId)
         {
-            _dbContext = dbContext;
             _audioDict = audioDict;
             _userReferenceId = userReferenceId;
         }
 
         public AudioProcessReultToken AddAudioProcess(AudioProcessDto dto)
         {
-            dto.AudioProcessToken = new AudioProcessReultToken();
             _audioCloudDtoQueue.Add(dto);
-            if (_task == null) Processing();
+            lock(this)
+            {
+                if (_task == null || _task.IsCompleted)
+                {
+                    Processing();
+                }
+            }
             return dto.AudioProcessToken;
         }
 
         private void Processing()
         {
-            _task = Task.Run(async () =>
+            _task = Task.Run(async() =>
             {
-                Console.WriteLine($"Audio Processing Task Running at {DateTime.Now.ToLocalTime()}");
+                Console.WriteLine($"Audio Processing Task(ID: {_task.Id}) Running at {DateTime.Now.ToLocalTime()}");
+                Console.WriteLine($"Queue depth: {_audioCloudDtoQueue.Count} at the beginning");
                 while (_audioCloudDtoQueue.TryTake(out var audioProcessDto))
                 {
                     var token = audioProcessDto.AudioProcessToken;
@@ -48,8 +54,9 @@ namespace NetworkSoundBox.Services.Audios
 
                     try
                     {
-                        var audioEntity = (from audio in _dbContext.Audios
-                                           join cloud in _dbContext.Clouds
+                        using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+                        var audioEntity = (from audio in db.Audios
+                                           join cloud in db.Clouds
                                            on audio.CloudReferenceId equals cloud.CloudReferenceId
                                            where cloud.UserReferenceId == _userReferenceId
                                            where audio.AudioName == formFile.FileName
@@ -59,9 +66,10 @@ namespace NetworkSoundBox.Services.Audios
                             token.Success = false;
                             token.ErrorMessage = "文件名重复";
                             token.Semaphore.Release();
+                            continue;
                         }
 
-                        var cloudEntity = (from cloud in _dbContext.Clouds
+                        var cloudEntity = (from cloud in db.Clouds
                                            where cloud.UserReferenceId == _userReferenceId
                                            select cloud).FirstOrDefault();
                         if (cloudEntity == null)
@@ -72,8 +80,8 @@ namespace NetworkSoundBox.Services.Audios
                                 CloudReferenceId = Guid.NewGuid().ToString(),
                                 Capacity = 20
                             };
-                            _dbContext.Clouds.Add(cloudEntity);
-                            _dbContext.SaveChanges();
+                            db.Clouds.Add(cloudEntity);
+                            db.SaveChanges();
                         }
                         else
                         {
@@ -82,6 +90,7 @@ namespace NetworkSoundBox.Services.Audios
                                 token.Success = false;
                                 token.ErrorMessage = "容量已满, 请删除不用的文件或扩容";
                                 token.Semaphore.Release();
+                                continue;
                             }
                         }
 
@@ -89,7 +98,7 @@ namespace NetworkSoundBox.Services.Audios
                         await formFile.OpenReadStream().ReadAsync(content);
 
                         var friendlyFileName = formFile.FileName.Replace(' ', '_');
-                        var path = $"{audioProcessDto.RootPath}/{_userReferenceId.Replace('-', '_')}";
+                        var path = $"{audioProcessDto.RootPath}/{_userReferenceId}";
                         if (!System.IO.Directory.Exists(path)) System.IO.Directory.CreateDirectory(path);
                         var fullPath = $"{path}/{friendlyFileName}";
                         using (var fileStream = System.IO.File.Create(fullPath))
@@ -107,8 +116,8 @@ namespace NetworkSoundBox.Services.Audios
                             Size = Convert.ToInt32(formFile.Length),
                             IsCached = "Y"
                         };
-                        _dbContext.Audios.Add(audioEntity);
-                        _dbContext.SaveChanges();
+                        db.Audios.Add(audioEntity);
+                        db.SaveChanges();
                         token.Success = true;
                         token.ResponseMesssage = JsonConvert.SerializeObject(new
                         {
@@ -117,26 +126,30 @@ namespace NetworkSoundBox.Services.Audios
                             audioEntity.Size,
                         });
                         token.Semaphore.Release();
+                        continue;
                     }
                     catch (Exception ex)
                     {
                         token.Success = false;
                         token.ErrorMessage = ex.Message;
                         token.Semaphore.Release();
+                        continue;
                     }
                 }
                 _audioDict.TryRemove(new KeyValuePair<string, AudioProcessor>(_userReferenceId, this));
+                Console.WriteLine("TryRemove is invoked");
             });
         }
         private bool CheckCapacity(string userReferenceId)
         {
-            var usedCount = (from audio in _dbContext.Audios
-                             join cloud in _dbContext.Clouds
+            using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+            var usedCount = (from audio in db.Audios
+                             join cloud in db.Clouds
                              on audio.CloudReferenceId equals cloud.CloudReferenceId
                              where cloud.UserReferenceId == userReferenceId
                              where audio.IsCached == "Y"
                              select audio).Count();
-            var capacity = (from cloud in _dbContext.Clouds
+            var capacity = (from cloud in db.Clouds
                             where cloud.UserReferenceId == userReferenceId
                             select cloud.Capacity).FirstOrDefault();
             return usedCount < capacity;

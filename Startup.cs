@@ -27,6 +27,7 @@ using NLog.Web;
 using NetworkSoundBox.Middleware.Authorization.Wechat.QRCode;
 using NetworkSoundBox.Middleware.Authorization.Wechat.Login;
 using NetworkSoundBox.Middleware.Authorization.Wechat.AccessToken;
+using NetworkSoundBox.Services.Audios;
 
 namespace NetworkSoundBox
 {
@@ -86,10 +87,9 @@ namespace NetworkSoundBox
                         OnMessageReceived = context =>
                         {
                             var accessToken = context.Request.Query["access_token"];
-                            var path = context.HttpContext.Request.Path;
-                            if (!string.IsNullOrEmpty(accessToken) &&
-                                path.StartsWithSegments("/NotificationHub"))
+                            if (!string.IsNullOrEmpty(accessToken))
                             {
+                                context.Request.Headers.Add("Authorization", "Bearer " + accessToken);
                                 context.Token = accessToken;
                             }
                             return Task.CompletedTask;
@@ -106,6 +106,7 @@ namespace NetworkSoundBox
             services.AddSingleton<IWechatLoginService, WechatLoginService>();
             services.AddSingleton<IDeviceAuthorization, DeviceAuthorization>();
             services.AddSingleton<INotificationContext, NotificationContext>();
+            services.AddSingleton<IAudioProcessorHelper, AudioProcessorHelper>();
             services.AddScoped<IXunfeiTtsService, XunfeiTtsService>();
             services.AddScoped<ResourceAuthAttribute>();
 

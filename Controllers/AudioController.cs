@@ -1,23 +1,20 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using NetworkSoundBox.Entities;
-using System.Security.Claims;
-using System.Linq;
-using NetworkSoundBox.Controllers.Model.Request;
-using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
-using System;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using AutoMapper;
-using NetworkSoundBox.Models;
+using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Controllers.Model.Request;
 using NetworkSoundBox.Controllers.Model.Response;
-using System.Collections.Concurrent;
-using NetworkSoundBox.Controllers.DTO;
+using NetworkSoundBox.Entities;
+using NetworkSoundBox.Models;
 using NetworkSoundBox.Services.Audios;
 using NetworkSoundBox.Services.DTO;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -29,10 +26,11 @@ namespace NetworkSoundBox.Controllers
         private readonly ILogger<AudioController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IMapper _mapper;
+        private readonly IAudioProcessorHelper _audioProcessorHelper;
 
         private readonly List<string> _acceptAudioTypes;
         private readonly string _audioRootPath;
-        private readonly ConcurrentDictionary<string, AudioProcessor> _audioProcessingDict = new();
+        //private static ConcurrentDictionary<string, AudioProcessor> _audioProcessingDict = new();
 
         private string UserReferenceId { get =>  GetUser(); }
 
@@ -40,12 +38,14 @@ namespace NetworkSoundBox.Controllers
             MySqlDbContext dbContext,
             ILogger<AudioController> logger,
             IConfiguration configuration,
-            IMapper mapper)
+            IMapper mapper, 
+            IAudioProcessorHelper audioProcessorHelper)
         {
             _configuration = configuration;
             _dbContext = dbContext;
             _logger = logger;
             _mapper = mapper;
+            _audioProcessorHelper = audioProcessorHelper;
             _acceptAudioTypes = _configuration["AcceptAudioTypes"].Split(',').ToList();
             _audioRootPath = _configuration["AudioRootPath"];
         }
@@ -83,29 +83,15 @@ namespace NetworkSoundBox.Controllers
 
             try
             {
-                AudioProcessReultToken token = new AudioProcessReultToken();
-                _audioProcessingDict.AddOrUpdate(userReferenceId,
-                (key) =>
-                {
-                    var audioProcessor = new AudioProcessor(_dbContext, _audioProcessingDict, userReferenceId);
-                    audioProcessor.AddAudioProcess(new AudioProcessDto()
+                AudioProcessReultToken token = new();
+                _audioProcessorHelper.AudioProcessors
+                    .GetOrAdd(userReferenceId, _audioProcessorHelper.CreateAudioProcessor(userReferenceId))
+                    .AddAudioProcess(new AudioProcessDto()
                     {
                         AudioProcessToken = token,
                         FormFile = formFile,
                         RootPath = _audioRootPath,
                     });
-                    return audioProcessor;
-                },
-                (key, value) =>
-                {
-                    value.AddAudioProcess(new AudioProcessDto()
-                    {
-                        AudioProcessToken = token,
-                        FormFile = formFile,
-                        RootPath = _audioRootPath,
-                    });
-                    return value;
-                });
                 return token.WaitResult();
             }
             catch (Exception ex)
@@ -157,6 +143,8 @@ namespace NetworkSoundBox.Controllers
                 System.IO.File.Delete(filePath);
 
                 audioEntity.IsCached = "N";
+                audioEntity.AudioPath = string.Empty;
+                audioEntity.Size = 0;
                 _dbContext.Audios.Update(audioEntity);
                 _dbContext.SaveChanges();
                 return Ok();
@@ -206,6 +194,7 @@ namespace NetworkSoundBox.Controllers
                                      join cloud in _dbContext.Clouds
                                      on audio.CloudReferenceId equals cloud.CloudReferenceId
                                      where cloud.UserReferenceId == userReferenceId
+                                     where audio.IsCached == "Y"
                                      select audio).ToList();
                 var audios = _mapper.Map<List<Audio>, List<AudioModel>>(audioEntities);
                 return Ok(JsonConvert.SerializeObject(new GetAudiosResponse()
@@ -220,14 +209,39 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
+        [Authorize]
+        [Authorize(Policy = "Permission")]
+        [HttpGet("get_audio_content")]
+        public FileResult GetAudioContent([FromQuery] string id, string access_token)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                return null;
+            }
+
+            var audioEntity = (from audio in _dbContext.Audios
+                               join cloud in _dbContext.Clouds
+                               on audio.CloudReferenceId equals cloud.CloudReferenceId
+                               where cloud.UserReferenceId == UserReferenceId
+                               where audio.AudioReferenceId == id
+                               select audio).FirstOrDefault();
+
+            var fileContent = System.IO.File.ReadAllBytes($"{_audioRootPath}{audioEntity.AudioPath}");
+            if (fileContent == null || fileContent.Length == 0)
+            {
+                return null;
+            }
+            return new FileContentResult(fileContent, "audio/mpeg");
+        }
+
         /// <summary>
         /// 更新文件名
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
         [Authorize]
-        [Authorize(Policy = "Permissioin")]
-        [HttpPost("")]
+        [Authorize(Policy = "Permission")]
+        [HttpPost("change_name")]
         public IActionResult UpdateAudioName([FromBody] UpdateAudioNameRequest request)
         {
             if (string.IsNullOrEmpty(request?.AudioReferenceId) ||
@@ -282,16 +296,9 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-
-
         private string GetUser()
         {
             return HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-        }
-
-        private void ProcessingUploads()
-        {
-
         }
     }
 }

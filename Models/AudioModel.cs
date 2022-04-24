@@ -8,5 +8,7 @@ namespace NetworkSoundBox.Models
         public string AudioType { get; set; }
         public TimeSpan Duration { get; set; }
         public int Size { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string AudioReferenceId { get; set; }
     }
 }

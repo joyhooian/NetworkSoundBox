@@ -11,6 +11,9 @@ namespace NetworkSoundBox.Entities
         public string Name { get; set; }
         public string DeviceGroupReferenceId { get; set; }
         public int UsingStatus { get; set; }
+        public string PlaylistReferenceId { get; set; }
+        public string CronTaskListReferenceId { get; set; }
+        public string DelayTaskReferenceId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

@@ -28,6 +28,8 @@ namespace NetworkSoundBox.Entities
         public virtual DbSet<DeviceGroupUser> DeviceGroupUsers { get; set; }
         public virtual DbSet<DeviceType> DeviceTypes { get; set; }
         public virtual DbSet<Permission> Permissions { get; set; }
+        public virtual DbSet<Playlist> Playlists { get; set; }
+        public virtual DbSet<PlaylistAudio> PlaylistAudios { get; set; }
         public virtual DbSet<Role> Roles { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<UserDevice> UserDevices { get; set; }
@@ -36,6 +38,7 @@ namespace NetworkSoundBox.Entities
         {
             if (!optionsBuilder.IsConfigured)
             {
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
                 optionsBuilder.UseMySql("server=8.130.51.198;userid=root;password=!RXchtgH*uqeFir@FGzTy_6v;database=NSB", Microsoft.EntityFrameworkCore.ServerVersion.Parse("5.7.36-mysql"));
             }
         }
@@ -267,6 +270,10 @@ namespace NetworkSoundBox.Entities
                     .HasMaxLength(255)
                     .HasColumnName("name");
 
+                entity.Property(e => e.PlaylistReferenceId)
+                    .HasMaxLength(255)
+                    .HasColumnName("playlistReferenceId");
+
                 entity.Property(e => e.Sn)
                     .IsRequired()
                     .HasMaxLength(255)
@@ -313,6 +320,15 @@ namespace NetworkSoundBox.Entities
                     .HasColumnType("int(11)")
                     .HasColumnName("index");
 
+                entity.Property(e => e.IsSynced)
+                    .HasMaxLength(1)
+                    .HasColumnName("isSynced")
+                    .IsFixedLength(true);
+
+                entity.Property(e => e.SyncCpltFlag)
+                    .HasMaxLength(255)
+                    .HasColumnName("syncCpltFlag");
+
                 entity.Property(e => e.UpdatedAt)
                     .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
@@ -336,6 +352,14 @@ namespace NetworkSoundBox.Entities
                     .HasColumnName("createdAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                entity.Property(e => e.CronTaskListReferenceId)
+                    .HasMaxLength(255)
+                    .HasColumnName("cronTaskListReferenceId");
+
+                entity.Property(e => e.DelayTaskReferenceId)
+                    .HasMaxLength(255)
+                    .HasColumnName("delayTaskReferenceId");
+
                 entity.Property(e => e.DeviceGroupReferenceId)
                     .IsRequired()
                     .HasMaxLength(255)
@@ -345,6 +369,10 @@ namespace NetworkSoundBox.Entities
                     .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("name");
+
+                entity.Property(e => e.PlaylistReferenceId)
+                    .HasMaxLength(255)
+                    .HasColumnName("playlistReferenceId");
 
                 entity.Property(e => e.UpdatedAt)
                     .HasColumnType("datetime")
@@ -478,6 +506,77 @@ namespace NetworkSoundBox.Entities
                     .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<Playlist>(entity =>
+            {
+                entity.HasKey(e => e.PlaylistKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("Playlist");
+
+                entity.Property(e => e.PlaylistKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("playlistKey");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.PlaylistName)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("playlistName");
+
+                entity.Property(e => e.PlaylistReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("playlistReferenceId");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UserReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userReferenceId");
+            });
+
+            modelBuilder.Entity<PlaylistAudio>(entity =>
+            {
+                entity.HasKey(e => e.PlaylistAudioKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("PlaylistAudio");
+
+                entity.Property(e => e.PlaylistAudioKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("playlistAudioKey");
+
+                entity.Property(e => e.AudioReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioReferenceId");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.PlaylistReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("playlistReferenceId");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 

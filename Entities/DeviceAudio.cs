@@ -11,6 +11,8 @@ namespace NetworkSoundBox.Entities
         public string DeviceReferenceId { get; set; }
         public string AudioReferenceId { get; set; }
         public int Index { get; set; }
+        public string IsSynced { get; set; }
+        public string SyncCpltFlag { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

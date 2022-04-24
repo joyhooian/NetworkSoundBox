@@ -15,6 +15,7 @@ namespace NetworkSoundBox.Entities
         public string ActivationKey { get; set; }
         public string Name { get; set; }
         public DateTime? LastOnline { get; set; }
+        public string PlaylistReferenceId { get; set; }
         public DateTime? UpdateAt { get; set; }
         public DateTime CreateAt { get; set; }
     }
