@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using NetworkSoundBox.Controllers.DTO;
 using NetworkSoundBox.Controllers.Model.Request;
 using NetworkSoundBox.Controllers.Model.Response;
 using NetworkSoundBox.Entities;
 using NetworkSoundBox.Middleware.Logger;
 using NetworkSoundBox.Models;
+using NetworkSoundBox.Services.Audios;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -24,15 +26,19 @@ namespace NetworkSoundBox.Controllers
         private readonly MySqlDbContext _dbContext;
         private readonly ILogger<DeviceGroupController> _logger;
         private readonly IMapper _mapper;
+        private readonly IAudioProcessorHelper _helper;
+
 
         public DeviceGroupController(
             MySqlDbContext dbContext,
             ILogger<DeviceGroupController> logger,
-            IMapper mapper)
+            IMapper mapper,
+            IAudioProcessorHelper helper)
         {
             _dbContext = dbContext;
             _logger = logger;
             _mapper = mapper;
+            _helper = helper;
         }
 
         /// <summary>
@@ -602,6 +608,146 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
+        [Authorize(Policy = "Permission")]
+        [HttpPost("get_group_audio")]
+        public IActionResult GetDeviceGroupAudios([FromQuery]string deviceGroupReferenceId)
+        {
+            var deviceReferenceIds = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
+                                      where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                                      select deviceGroupDevice.DeviceReferenceId).ToList();
+
+            var deviceListAudioList = new List<List<string>>();
+            deviceReferenceIds.ForEach(deviceReferenceId =>
+            {
+                var audioList = (from deviceAudio in _dbContext.DeviceAudios
+                                 join device in _dbContext.Devices
+                                 on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
+                                 join audio in _dbContext.Audios
+                                 on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
+                                 where device.DeviceReferenceId == deviceReferenceId
+                                 select deviceAudio.AudioReferenceId).ToList();
+                deviceListAudioList.Add(audioList);
+            });
+
+            var intersectAudios = deviceListAudioList.FirstOrDefault();
+            deviceListAudioList.Skip(1).ToList().ForEach(list =>
+            {
+                intersectAudios = intersectAudios.Intersect(list).ToList();
+            });
+
+            var responseList = new List<DeviceAudioDto>();
+            intersectAudios.ForEach(audioReferenceId =>
+            {
+                var deviceAudioDtos = new List<DeviceAudioDto>();
+                deviceReferenceIds.ForEach(deviceReferenceId =>
+                {
+                    var dto = (from deviceAudio in _dbContext.DeviceAudios
+                               join audio in _dbContext.Audios
+                               on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
+                               where deviceAudio.AudioReferenceId == audioReferenceId &&
+                               deviceAudio.DeviceReferenceId == deviceReferenceId
+                               select new DeviceAudioDto
+                               {
+                                   AudioReferenceId = audioReferenceId,
+                                   IsSynced = deviceAudio.IsSynced,
+                                   AudioName = audio.AudioName,
+                                   Size = audio.Size
+                               }).FirstOrDefault();
+                    deviceAudioDtos.Add(dto);
+                });
+                var responseDto = new DeviceAudioDto()
+                {
+                    AudioReferenceId = deviceAudioDtos.FirstOrDefault().AudioReferenceId,
+                    IsSynced = deviceAudioDtos.All(d => d.IsSynced == "Y") ? "Y" : "N",
+                    AudioName = deviceAudioDtos.FirstOrDefault().AudioName,
+                    Size = deviceAudioDtos.FirstOrDefault().Size
+                };
+                responseList.Add(responseDto);
+            });
+
+            return Ok(JsonConvert.SerializeObject(responseList));
+        }
+
+        [Authorize(Policy = "Permission")]
+        [HttpPost("add_group_audio")]
+        public IActionResult AddGroupAudio([FromQuery]string deviceGroupReferenceId, [FromQuery]string audioReferenceId)
+        {
+            var deviceEntities = (from device in _dbContext.Devices
+                                  join deviceGroup in _dbContext.DeviceGroupDevices
+                                  on device.DeviceReferenceId equals deviceGroup.DeviceReferenceId
+                                  where deviceGroup.DeviceGroupReferenceId == deviceGroupReferenceId
+                                  select device).ToList();
+            if (!deviceEntities.Any()) return BadRequest("没有成员设备");
+
+            var audioEntity = (from audio in _dbContext.Audios
+                               where audio.AudioReferenceId == audioReferenceId 
+                               select audio).FirstOrDefault();
+            if (audioEntity == null) return BadRequest("请求有误");
+
+            deviceEntities.ForEach(device =>
+            {
+                var deviceAudioEntity = (from deviceAudio in _dbContext.DeviceAudios
+                                         where deviceAudio.DeviceReferenceId == device.DeviceReferenceId
+                                         && deviceAudio.AudioReferenceId == audioReferenceId
+                                         select deviceAudio).FirstOrDefault();
+                if (deviceAudioEntity == null)
+                {
+                    deviceAudioEntity = new DeviceAudio()
+                    {
+                        DeviceReferenceId = device.DeviceReferenceId,
+                        AudioReferenceId = audioReferenceId,
+                        IsSynced = "N"
+                    };
+                    _dbContext.DeviceAudios.Add(deviceAudioEntity);
+                }
+            });
+            _dbContext.SaveChanges();
+            return Ok();
+        }
+
+        [Authorize(Policy = "Permission")]
+        [HttpPost("sync_group_audio")]
+        public IActionResult SyncGroupAudio([FromQuery]string deviceGroupReferenceId)
+        {
+            var deviceEntities = (from device in _dbContext.Devices
+                                  join deviceGroup in _dbContext.DeviceGroupDevices
+                                  on device.DeviceReferenceId equals deviceGroup.DeviceReferenceId
+                                  where deviceGroup.DeviceGroupReferenceId == deviceGroupReferenceId
+                                  select device).ToList();
+            if (!deviceEntities.Any()) return BadRequest("没有成员设备");
+
+            deviceEntities.ForEach(deviceEntity =>
+            {
+                var deviceAudioEntities =
+                (from deviceAudio in _dbContext.DeviceAudios
+                 join audio in _dbContext.Audios
+                     on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
+                 where deviceAudio.DeviceReferenceId == deviceEntity.DeviceReferenceId &&
+                       deviceAudio.IsSynced == "N"
+                 select new
+                 {
+                     DeviceAudio = deviceAudio,
+                     Audio = audio,
+                     Device = deviceEntity
+                 }).ToList();
+                if (deviceAudioEntities.Any())
+                {
+                    deviceAudioEntities.ForEach(audio =>
+                    {
+                        _helper.AddAudioSyncEvent(new AudioSyncEvent()
+                        {
+                            AudioPath = audio.Audio.AudioPath,
+                            DeviceAudioKey = audio.DeviceAudio.DeviceAudioKey,
+                            DeviceReferenceId = audio.Device.DeviceReferenceId,
+                            FileName = audio.Audio.AudioName,
+                            OperationType = OperationType.Add,
+                            Sn = audio.Device.Sn
+                        });
+                    });
+                }
+            });
+            return Ok();
+        }
 
         /// <summary>
         /// 获取设备组设备及未分组设备

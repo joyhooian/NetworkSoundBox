@@ -26,11 +26,13 @@ namespace NetworkSoundBox.Entities
         public virtual DbSet<DeviceGroup> DeviceGroups { get; set; }
         public virtual DbSet<DeviceGroupDevice> DeviceGroupDevices { get; set; }
         public virtual DbSet<DeviceGroupUser> DeviceGroupUsers { get; set; }
+        public virtual DbSet<DeviceTask> DeviceTasks { get; set; }
         public virtual DbSet<DeviceType> DeviceTypes { get; set; }
         public virtual DbSet<Permission> Permissions { get; set; }
         public virtual DbSet<Playlist> Playlists { get; set; }
         public virtual DbSet<PlaylistAudio> PlaylistAudios { get; set; }
         public virtual DbSet<Role> Roles { get; set; }
+        public virtual DbSet<TaskType> TaskTypes { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<UserDevice> UserDevices { get; set; }
 
@@ -38,7 +40,6 @@ namespace NetworkSoundBox.Entities
         {
             if (!optionsBuilder.IsConfigured)
             {
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
                 optionsBuilder.UseMySql("server=8.130.51.198;userid=root;password=!RXchtgH*uqeFir@FGzTy_6v;database=NSB", Microsoft.EntityFrameworkCore.ServerVersion.Parse("5.7.36-mysql"));
             }
         }
@@ -144,18 +145,19 @@ namespace NetworkSoundBox.Entities
 
             modelBuilder.Entity<CronTask>(entity =>
             {
-                entity.HasKey(e => e.Key)
+                entity.HasKey(e => e.CronKey)
                     .HasName("PRIMARY");
 
                 entity.ToTable("CronTask");
 
-                entity.Property(e => e.Key)
+                entity.Property(e => e.CronKey)
                     .HasColumnType("int(11)")
-                    .HasColumnName("key");
+                    .HasColumnName("cronKey");
 
-                entity.Property(e => e.Audio)
-                    .HasColumnType("int(11)")
-                    .HasColumnName("audio");
+                entity.Property(e => e.AudioReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioReferenceId");
 
                 entity.Property(e => e.CreatedAt)
                     .HasColumnType("datetime")
@@ -168,7 +170,8 @@ namespace NetworkSoundBox.Entities
                     .HasColumnName("cronReferenceId");
 
                 entity.Property(e => e.EndTime)
-                    .HasColumnType("datetime")
+                    .IsRequired()
+                    .HasMaxLength(255)
                     .HasColumnName("endTime");
 
                 entity.Property(e => e.Relay)
@@ -176,7 +179,8 @@ namespace NetworkSoundBox.Entities
                     .HasColumnName("relay");
 
                 entity.Property(e => e.StartTime)
-                    .HasColumnType("datetime")
+                    .IsRequired()
+                    .HasMaxLength(255)
                     .HasColumnName("startTime");
 
                 entity.Property(e => e.UpdatedAt)
@@ -184,6 +188,11 @@ namespace NetworkSoundBox.Entities
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnName("updatedAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.UserReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userReferenceId");
 
                 entity.Property(e => e.Volume)
                     .HasColumnType("int(11)")
@@ -197,18 +206,19 @@ namespace NetworkSoundBox.Entities
 
             modelBuilder.Entity<DelayTask>(entity =>
             {
-                entity.HasKey(e => e.Key)
+                entity.HasKey(e => e.DelayKey)
                     .HasName("PRIMARY");
 
                 entity.ToTable("DelayTask");
 
-                entity.Property(e => e.Key)
+                entity.Property(e => e.DelayKey)
                     .HasColumnType("int(11)")
-                    .HasColumnName("key");
+                    .HasColumnName("delayKey");
 
-                entity.Property(e => e.Audio)
-                    .HasColumnType("int(11)")
-                    .HasColumnName("audio");
+                entity.Property(e => e.AudioReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("audioReferenceId");
 
                 entity.Property(e => e.CreatedAt)
                     .HasColumnType("datetime")
@@ -230,6 +240,11 @@ namespace NetworkSoundBox.Entities
                 entity.Property(e => e.UpdatedAt)
                     .HasColumnType("datetime")
                     .HasColumnName("updatedAt");
+
+                entity.Property(e => e.UserReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("userReferenceId");
 
                 entity.Property(e => e.Volume)
                     .HasColumnType("int(11)")
@@ -299,7 +314,6 @@ namespace NetworkSoundBox.Entities
 
                 entity.Property(e => e.DeviceAudioKey)
                     .HasColumnType("int(11)")
-                    .ValueGeneratedNever()
                     .HasColumnName("deviceAudioKey");
 
                 entity.Property(e => e.AudioReferenceId)
@@ -449,6 +463,43 @@ namespace NetworkSoundBox.Entities
                     .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("userReferenceId");
+            });
+
+            modelBuilder.Entity<DeviceTask>(entity =>
+            {
+                entity.HasKey(e => e.DeviceTaskKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("DeviceTask");
+
+                entity.Property(e => e.DeviceTaskKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("deviceTaskKey");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.DeviceReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("deviceReferenceId");
+
+                entity.Property(e => e.TaskReferenceId)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("taskReferenceId");
+
+                entity.Property(e => e.TaskTypeKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("taskTypeKey");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             modelBuilder.Entity<DeviceType>(entity =>
@@ -606,6 +657,34 @@ namespace NetworkSoundBox.Entities
                     .HasColumnType("datetime")
                     .ValueGeneratedOnAddOrUpdate()
                     .HasColumnName("updateAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            modelBuilder.Entity<TaskType>(entity =>
+            {
+                entity.HasKey(e => e.TaskTypeKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("TaskType");
+
+                entity.Property(e => e.TaskTypeKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("taskTypeKey");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.TaskTypeShortName)
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnName("taskTypeShortName");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 

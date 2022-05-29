@@ -10,9 +10,11 @@ using NetworkSoundBox.Entities;
 using NetworkSoundBox.Models;
 using NetworkSoundBox.Services.Audios;
 using NetworkSoundBox.Services.DTO;
+using NetworkSoundBox.Services.TextToSpeech;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 
@@ -27,6 +29,7 @@ namespace NetworkSoundBox.Controllers
         private readonly IConfiguration _configuration;
         private readonly IMapper _mapper;
         private readonly IAudioProcessorHelper _audioProcessorHelper;
+        private readonly IXunfeiTtsService _xunfeiTtsService;
 
         private readonly List<string> _acceptAudioTypes;
         private readonly string _audioRootPath;
@@ -39,7 +42,8 @@ namespace NetworkSoundBox.Controllers
             ILogger<AudioController> logger,
             IConfiguration configuration,
             IMapper mapper, 
-            IAudioProcessorHelper audioProcessorHelper)
+            IAudioProcessorHelper audioProcessorHelper,
+            IXunfeiTtsService xunfeiTtsService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
@@ -48,6 +52,7 @@ namespace NetworkSoundBox.Controllers
             _audioProcessorHelper = audioProcessorHelper;
             _acceptAudioTypes = _configuration["AcceptAudioTypes"].Split(',').ToList();
             _audioRootPath = _configuration["AudioRootPath"];
+            _xunfeiTtsService = xunfeiTtsService;
         }
 
         /// <summary>
@@ -97,6 +102,46 @@ namespace NetworkSoundBox.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "While AddAudio is invoked");
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [Authorize(Policy = "Permission")]
+        [HttpPost("add_tts")]
+        public IActionResult AddTTS([FromBody] AddTTSRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Name))
+                return BadRequest("文件名为空");
+            if (string.IsNullOrEmpty(request.Text))
+                return BadRequest("文字为空");
+            if (string.IsNullOrEmpty(request.VCN))
+                return BadRequest("发言人为空");
+            if (request.Speed < 0 || request.Speed > 100)
+                return BadRequest("语音速度参数有误");
+            if (request.Volume < 0 || request.Volume > 100)
+                return BadRequest("语音音量参数有误");
+            
+            try
+            {
+                var audio = _xunfeiTtsService.GetSpeech(request.Text, request.VCN, request.Speed, request.Volume).Result.ToArray();
+                var stream = new MemoryStream(audio);
+                var fileName = request.Name;
+                if (!fileName.EndsWith(".mp3")) fileName += ".mp3";
+                var formFile = new FormFile(stream, 0, audio.LongLength, fileName, fileName);
+                AudioProcessReultToken token = new();
+                _audioProcessorHelper.AudioProcessors
+                    .GetOrAdd(UserReferenceId, _audioProcessorHelper.CreateAudioProcessor(UserReferenceId))
+                    .AddAudioProcess(new AudioProcessDto()
+                    {
+                        AudioProcessToken = token,
+                        FormFile = formFile,
+                        RootPath = _audioRootPath,
+                    });
+                return token.WaitResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "While AddTTS is invoked");
                 return BadRequest(ex.Message);
             }
         }

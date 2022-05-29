@@ -117,6 +117,7 @@ namespace NetworkSoundBox
             services.AddHttpContextAccessor();
             services.AddHostedService<DeviceServer>();
             services.AddHostedService<DeviceSupervisor>();
+            services.AddHostedService<AudioSyncProcessor>();
             services.AddDbContext<MySqlDbContext>(options => options.UseMySql(Configuration.GetConnectionString("MySQL"), MySqlServerVersion.LatestSupportedServerVersion));
             services.AddCors(options =>
             {

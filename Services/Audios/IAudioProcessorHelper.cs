@@ -7,5 +7,7 @@ namespace NetworkSoundBox.Services.Audios
     {
         ConcurrentDictionary<string, AudioProcessor> AudioProcessors { get; }
         AudioProcessor CreateAudioProcessor(string userReferenceId);
+        void AddAudioSyncEvent(AudioSyncEvent syncEvent);
+        BlockingCollection<AudioSyncEvent> ProcessingQueue { get; }
     }
 }

@@ -107,14 +107,12 @@ namespace NetworkSoundBox.Services.Device.Handler
                     _heartbeat.Reset();
                     var message = InboxQueue.Take(_cts.Token);
                     _logger.LogInformation(LogEvent.MsgRecv, $"[{Sn}]Recv[{message?.MessageLen}]bytes,CMD[{message?.Command.ToString()}],Data:{Convert.ToHexString(message?.Data.ToArray())}");
-                    //Console.WriteLine($"[{Sn}]收到长度{message.MessageLen}的数据 CMD[{message.Command}]");
-                    //message.Data.ForEach(x => Console.Write("{0:X2} ", x));
-                    //Console.WriteLine("");
                     var token = _messageContext.GetToken(message.Command);
                     switch (message.Command)
                     {
                         case Command.Login:
                             DeviceLogin(message);
+                            Task.Run(DeviceAudioSync, _cts.Token);
                             break;
                         case Command.Heartbeat:
                             _outboxQueue.TryAdd(new Outbound(Command.Heartbeat));
@@ -632,7 +630,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 }
                 else throw new Exception("Receive 0 byte from device, time to close");
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //Console.WriteLine(e.Message);
                 _logger.LogInformation(LogEvent.DeviceDisconn, $"Device {Sn} @{IpAddress}:{Port} disconnect");
@@ -756,6 +754,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 _logger.LogError(LogEvent.DeviceLogin, $"Device @{IpAddress}:{Port} carray an invalid sn");
                 return;
             }
+            
 
             _notificationContext.SendDeviceOnline(Sn);
             if (_deviceContext.DevicePool.TryGetValue(Sn, out var device))
@@ -806,6 +805,47 @@ namespace NetworkSoundBox.Services.Device.Handler
             {
                 _logger.LogError(LogEvent.DeviceDisconn, ex, ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 同步设备音频数量
+        /// </summary>
+        /// <param name="dbContext"></param>
+        private void DeviceAudioSync()
+        {
+            using var dbContext = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+            var audioCnt = GetPlayList();
+            var deviceEntity = (from device in dbContext.Devices
+                                     where device.Sn == Sn
+                                     select device).FirstOrDefault();
+            if (deviceEntity == null) return;
+
+            var deviceAudios = (from deviceAudio in dbContext.DeviceAudios
+                                where deviceAudio.DeviceReferenceId == deviceEntity.DeviceReferenceId && 
+                                deviceAudio.IsSynced == "Y"
+                                orderby deviceAudio.Index descending
+                                select deviceAudio).ToList();
+            if (deviceAudios.Count == audioCnt) return;
+            var diff = audioCnt - deviceAudios.Count;
+            var index = 1;
+            if (deviceAudios.Count != 0)
+                index = deviceAudios.First().Index ?? 0 + 1;
+
+            var deviceAudioBatch = new List<DeviceAudio>();
+            for (var i = 0; i < diff; i++)
+            {
+                var deviceAudio = new DeviceAudio()
+                {
+                    DeviceReferenceId = deviceEntity.DeviceReferenceId,
+                    AudioReferenceId = null,
+                    Index = index,
+                    IsSynced = "Y"
+                };
+                index++;
+                deviceAudioBatch.Add(deviceAudio);
+            }
+            dbContext.DeviceAudios.AddRange(deviceAudioBatch);
+            dbContext.SaveChanges();
         }
     }
 }

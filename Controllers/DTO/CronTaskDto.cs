@@ -13,6 +13,6 @@ namespace NetworkSoundBox.Controllers.DTO
         public DateTime EndTime { get; set; }
         public int Volume { get; set; }
         public bool Relay { get; set; }
-        public int Audio { get; set; }
+        public string AudioReferenceId { get; set; }
     }
 }

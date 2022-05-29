@@ -5,14 +5,12 @@ using System.Collections.Generic;
 
 namespace NetworkSoundBox.Entities
 {
-    public partial class DeviceAudio
+    public partial class DeviceTask
     {
-        public int DeviceAudioKey { get; set; }
+        public int DeviceTaskKey { get; set; }
         public string DeviceReferenceId { get; set; }
-        public string AudioReferenceId { get; set; }
-        public int? Index { get; set; }
-        public string IsSynced { get; set; }
-        public string SyncCpltFlag { get; set; }
+        public string TaskReferenceId { get; set; }
+        public int TaskTypeKey { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

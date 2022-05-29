@@ -54,7 +54,7 @@ namespace NetworkSoundBox.Services.Audios
 
                     try
                     {
-                        using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
+                        await using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);
                         var audioEntity = (from audio in db.Audios
                                            join cloud in db.Clouds
                                            on audio.CloudReferenceId equals cloud.CloudReferenceId
@@ -81,7 +81,7 @@ namespace NetworkSoundBox.Services.Audios
                                 Capacity = 20
                             };
                             db.Clouds.Add(cloudEntity);
-                            db.SaveChanges();
+                            await db.SaveChangesAsync();
                         }
                         else
                         {
@@ -101,7 +101,7 @@ namespace NetworkSoundBox.Services.Audios
                         var path = $"{audioProcessDto.RootPath}/{_userReferenceId}";
                         if (!System.IO.Directory.Exists(path)) System.IO.Directory.CreateDirectory(path);
                         var fullPath = $"{path}/{friendlyFileName}";
-                        using (var fileStream = System.IO.File.Create(fullPath))
+                        await using (var fileStream = System.IO.File.Create(fullPath))
                         {
                             fileStream.Write(content);
                             fileStream.Close();
@@ -117,7 +117,7 @@ namespace NetworkSoundBox.Services.Audios
                             IsCached = "Y"
                         };
                         db.Audios.Add(audioEntity);
-                        db.SaveChanges();
+                        await db.SaveChangesAsync();
                         token.Success = true;
                         token.ResponseMesssage = JsonConvert.SerializeObject(new
                         {

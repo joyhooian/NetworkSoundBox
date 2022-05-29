@@ -6,25 +6,15 @@ namespace NetworkSoundBox.Services.Model
 {
     public class AudioTrxModel
     {
-        public DateTimeOffset ExpireTime { get; }
-        public string Sn { get; set; }
-        public string FilePath { get; set; }
         public string FileName { get; set; }
+        public string AudioPath { get; set; }
+        public int DeviceAudioKey { get; set; }
+        public string DeviceReferenceId { get; set; }
         private readonly Semaphore _transferSemaphore;
         private bool _transferCpltFlag;
 
         public AudioTrxModel()
         {
-            ExpireTime = DateTimeOffset.Now.AddMinutes(5);
-            _transferSemaphore = new Semaphore(0, 1);
-        }
-
-        public AudioTrxModel(string sn, string filePath, string fileName)
-        {
-            ExpireTime = DateTimeOffset.Now.AddMinutes(5);
-            Sn = sn;
-            FilePath = filePath;
-            FileName = fileName;
             _transferSemaphore = new Semaphore(0, 1);
         }
 
