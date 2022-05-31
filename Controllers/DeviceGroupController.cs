@@ -615,7 +615,7 @@ namespace NetworkSoundBox.Controllers
             var deviceReferenceIds = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
                                       where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
                                       select deviceGroupDevice.DeviceReferenceId).ToList();
-
+            if (!deviceReferenceIds.Any()) return BadRequest("设备组没有成员");
             var deviceListAudioList = new List<List<string>>();
             deviceReferenceIds.ForEach(deviceReferenceId =>
             {
