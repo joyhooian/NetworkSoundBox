@@ -95,39 +95,40 @@ namespace NetworkSoundBox.Controllers
 
             try
             {
-                var deviceAudioEntities = (from deviceAudio in _dbContext.DeviceAudios
-                                           join userDevice in _dbContext.UserDevices
-                                           on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                                           join device in _dbContext.Devices
-                                           on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
-                                           join audio in _dbContext.Audios
-                                           on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
-                                           where userDevice.UserRefrenceId == UserReferenceId
-                                           where device.Sn == sn
-                                           select new
-                                           {
-                                               AudioReferenceId = deviceAudio.AudioReferenceId,
-                                               Index = deviceAudio.Index,
-                                               IsSynced = deviceAudio.IsSynced,
-                                               AudioName = audio.AudioName,
-                                               Size = audio.Size
-                                           }).ToList();
+                var deviceAudioEntities =
+                    (from deviceAudio in _dbContext.DeviceAudios
+                        join userDevice in _dbContext.UserDevices
+                            on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                        join device in _dbContext.Devices
+                            on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
+                        join audio in _dbContext.Audios
+                            on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
+                        where userDevice.UserRefrenceId == UserReferenceId
+                        where device.Sn == sn
+                        select new
+                        {
+                            AudioReferenceId = deviceAudio.AudioReferenceId,
+                            Index = deviceAudio.Index,
+                            IsSynced = deviceAudio.IsSynced,
+                            AudioName = audio.AudioName,
+                            Size = audio.Size
+                        }).ToList();
                 var unknownAudioEntities = (from deviceAudio in _dbContext.DeviceAudios
-                                            join userDevice in _dbContext.UserDevices
-                                                on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
-                                            join device in _dbContext.Devices
-                                                on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
-                                            where userDevice.UserRefrenceId == UserReferenceId
-                                            where deviceAudio.AudioReferenceId == null
-                                            where device.Sn == sn
-                                            select new
-                                            {
-                                                AudioReferenceId = string.Empty,
-                                                Index = deviceAudio.Index,
-                                                IsSynced = deviceAudio.IsSynced,
-                                                AudioName = "未知音频",
-                                                Size = 0
-                                            }).ToList();
+                    join userDevice in _dbContext.UserDevices
+                        on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
+                    join device in _dbContext.Devices
+                        on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
+                    where userDevice.UserRefrenceId == UserReferenceId
+                    where deviceAudio.AudioReferenceId == null
+                    where device.Sn == sn
+                    select new
+                    {
+                        AudioReferenceId = string.Empty,
+                        Index = deviceAudio.Index,
+                        IsSynced = deviceAudio.IsSynced,
+                        AudioName = "未知音频",
+                        Size = 0
+                    }).ToList();
                 deviceAudioEntities.AddRange(unknownAudioEntities);
                 return Ok(JsonConvert.SerializeObject(deviceAudioEntities));
             }
@@ -350,6 +351,86 @@ namespace NetworkSoundBox.Controllers
             return result ? Ok() : BadRequest("设备未响应");
         }
 
+        [Authorize(Policy = "Permission")]
+        [HttpPost("delete_audio_group")]
+        public IActionResult DeleteAudioGroup([FromQuery] string deviceGroupReferenceId,
+            [FromQuery] string audioReferenceId)
+        {
+            var errorCnt = 0;
+            try
+            {
+                var deviceEntities =
+                    (from device in _dbContext.Devices
+                        join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                            on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                        where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                        select device).ToList();
+                if (!deviceEntities.Any()) return BadRequest("没有设备组成员");
+
+                foreach (var device in deviceEntities)
+                {
+                    using var transaction = _dbContext.Database.BeginTransaction();
+                    var deviceAudioEntities =
+                        (from deviceAudio in _dbContext.DeviceAudios
+                            where deviceAudio.DeviceReferenceId == device.DeviceReferenceId
+                                  && deviceAudio.IsSynced == "Y"
+                            orderby deviceAudio.Index
+                            select deviceAudio).ToList();
+                    if (!deviceAudioEntities.Any())
+                    {
+                        errorCnt++;
+                        continue;
+                    }
+
+                    var deleteDeviceAudioEntity =
+                        (from deviceAudio in deviceAudioEntities
+                            where deviceAudio.AudioReferenceId == audioReferenceId
+                            select deviceAudio).FirstOrDefault();
+                    if (deleteDeviceAudioEntity == null)
+                    {
+                        errorCnt++;
+                        continue;
+                    }
+
+                    var index = deleteDeviceAudioEntity.Index;
+                    if (index == null)
+                    {
+                        errorCnt++;
+                        continue;
+                    }
+
+                    if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                    {
+                        errorCnt++;
+                        continue;;
+                    }
+
+                    if (!deviceHandler.DeleteAudio((int)index))
+                    {
+                        errorCnt++;
+                        continue;
+                    }
+
+                    _dbContext.DeviceAudios.Remove(deleteDeviceAudioEntity);
+                    _dbContext.SaveChanges();
+
+                    var updatingDeviceAudioEntities = deviceAudioEntities.Skip((int)index).ToList();
+                    updatingDeviceAudioEntities.ForEach(item => item.Index--);
+                    _dbContext.DeviceAudios.UpdateRange(updatingDeviceAudioEntities);
+                    _dbContext.SaveChanges();
+
+                    transaction.Commit();
+                }
+
+                return Ok($"删除成功{deviceEntities.Count - errorCnt}个, 失败{errorCnt}个");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(LogEvent.DeviceControlApi, e, "While DeleteAudioGroup is invoked");
+                return BadRequest(e.Message);
+            }
+        }
+
         /// <summary>
         /// 播放指定序号的音频
         /// </summary>
@@ -365,6 +446,64 @@ namespace NetworkSoundBox.Controllers
 
             DeviceHandler device = _deviceContext.DevicePool[sn];
             return device.PlayIndex(index) ? Ok() : BadRequest("设备未响应");
+        }
+
+        [Authorize(Policy = "Permission")]
+        [HttpPost("play_audio_group")]
+        public IActionResult PlayAudioGroup([FromQuery] string deviceGroupReferenceId,
+            [FromQuery] string audioReferenceId)
+        {
+            var errorCnt = 0;
+            try
+            {
+                var deviceEntities =
+                    (from device in _dbContext.Devices
+                        join deviceGroupDevice in _dbContext.DeviceGroupDevices on device.DeviceReferenceId equals
+                            deviceGroupDevice.DeviceReferenceId
+                        where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                        select device).ToList();
+                if (!deviceEntities.Any()) return BadRequest("没有成员设备");
+
+                foreach (var device in deviceEntities)
+                {
+                    var deviceAudioEntity =
+                        (from deviceAudio in _dbContext.DeviceAudios
+                            where deviceAudio.DeviceReferenceId == device.DeviceReferenceId
+                                  && deviceAudio.AudioReferenceId == audioReferenceId
+                                  && deviceAudio.IsSynced == "Y"
+                            select deviceAudio).FirstOrDefault();
+                    if (deviceAudioEntity == null)
+                    {
+                        errorCnt++;
+                        continue;;
+                    }
+
+                    var index = deviceAudioEntity.Index;
+                    if (index == null)
+                    {
+                        errorCnt++;
+                        continue;
+                    }
+
+                    if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                    {
+                        errorCnt++;
+                        continue;;
+                    }
+
+                    if (!deviceHandler.PlayIndex((int)index))
+                    {
+                        errorCnt++;
+                    }
+                }
+
+                return Ok($"成功播放{deviceEntities.Count - errorCnt}个, 失败{errorCnt}个");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(LogEvent.DeviceControlApi, e, "While PlayAudioGroup is invoked");
+                return BadRequest(e.Message);
+            }
         }
 
         /// <summary>
@@ -763,22 +902,103 @@ namespace NetworkSoundBox.Controllers
                     (byte) dto.Volume,
                     (byte) (dto.Relay ? 0x01 : 0x00)
                 };
-                int? audioIndex = (from deviceAudio in _dbContext.DeviceAudios
-                                  join deviceEntity in _dbContext.Devices
-                                  on deviceAudio.DeviceReferenceId equals deviceEntity.DeviceReferenceId
-                                  where deviceAudio.AudioReferenceId == dto.AudioReferenceId
-                                  && deviceEntity.Sn == sn
-                                  && deviceAudio.IsSynced == "Y"
-                                  select deviceAudio.Index).FirstOrDefault();
-                if (audioIndex != null)
+
+                if (!string.IsNullOrEmpty(dto.AudioReferenceId))
                 {
+                    var audioIndex = (from deviceAudio in _dbContext.DeviceAudios
+                        join deviceEntity in _dbContext.Devices
+                            on deviceAudio.DeviceReferenceId equals deviceEntity.DeviceReferenceId
+                        where deviceAudio.AudioReferenceId == dto.AudioReferenceId
+                              && deviceEntity.Sn == sn
+                              && deviceAudio.IsSynced == "Y"
+                        select deviceAudio.Index).FirstOrDefault();
+                    if (audioIndex == null) continue;
                     data.Add((byte)audioIndex);
-                    dto.Weekdays.ForEach(d => { data.Add((byte)(d + 1)); });
-                    if (!device.SendCronTask(data)) return BadRequest("设置失败");
                 }
+                else if (dto.Audio != null)
+                {
+                    data.Add((byte)dto.Audio);
+                }
+                else continue;
+                
+                dto.Weekdays.ForEach(d => { data.Add((byte)(d + 1)); });
+                if (!device.SendCronTask(data)) return BadRequest("设置失败");
             }
 
             return Ok();
+        }
+
+        [Authorize(Policy = "Permission")]
+        [HttpPost("cron_task_group")]
+        public IActionResult SetCronTaskGroup([FromQuery] string deviceGroupReferenceId,
+            [FromBody] IList<CronTaskDto> dtos)
+        {
+            var deviceErrorCnt = 0;
+            var taskErrorCnt = 0;
+            
+            var deviceEntities =
+                (from device in _dbContext.Devices
+                    join deviceGroupDevice in _dbContext.DeviceGroupDevices 
+                        on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                    where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                    select device).ToList();
+            if (!deviceEntities.Any()) return BadRequest("该组没有成员设备");
+
+            foreach (var device in deviceEntities)
+            {
+                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                {
+                    deviceErrorCnt++;
+                    continue;
+                }
+
+                if (!deviceHandler.SendCronTaskCount(dtos.Count))
+                {
+                    deviceErrorCnt++;
+                    continue;
+                }
+
+                foreach (var taskDto in dtos)
+                {
+                    List<byte> data = new()
+                    {
+                        (byte) taskDto.Index,
+                        (byte) taskDto.StartTime.Hour,
+                        (byte) taskDto.StartTime.Minute,
+                        (byte) taskDto.EndTime.Hour,
+                        (byte) taskDto.EndTime.Minute,
+                        (byte) taskDto.Volume,
+                        (byte) (taskDto.Relay ? 0x01 : 0x00)
+                    };
+                    if (string.IsNullOrEmpty(taskDto.AudioReferenceId))
+                    {
+                        taskErrorCnt++;
+                        continue;
+                    }
+                    var audioIndex = 
+                        (from deviceAudio in _dbContext.DeviceAudios
+                        where deviceAudio.AudioReferenceId == taskDto.AudioReferenceId
+                              && deviceAudio.DeviceReferenceId == device.DeviceReferenceId
+                              && deviceAudio.IsSynced == "Y"
+                        select deviceAudio.Index).FirstOrDefault();
+                    if (audioIndex == null)
+                    {
+                        taskErrorCnt++;
+                        continue;
+                    }
+                    data.Add((byte) audioIndex);
+                    taskDto.Weekdays.ForEach(d => { data.Add((byte)(d + 1)); });
+                    if (!deviceHandler.SendCronTask(data)) deviceErrorCnt++;
+                }
+            }
+
+            if (deviceErrorCnt == 0 && taskErrorCnt == 0)
+                return Ok("设置成功");
+            if (deviceErrorCnt == 0)
+                return Ok($"部分成功. {taskErrorCnt}个任务设置失败");
+            if (taskErrorCnt == 0)
+                return Ok($"部分成功. {deviceEntities}个设备无响应");
+            return Ok($"部分成功. {taskErrorCnt}个任务设置失败, {deviceEntities}个设备无响应");
         }
 
         ///// <summary>

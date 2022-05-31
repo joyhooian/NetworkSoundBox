@@ -748,7 +748,7 @@ namespace NetworkSoundBox.Controllers
             });
             return Ok();
         }
-
+        
         /// <summary>
         /// 获取设备组设备及未分组设备
         /// </summary>
