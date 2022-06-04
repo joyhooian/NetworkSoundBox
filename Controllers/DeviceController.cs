@@ -70,7 +70,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="sn">SN</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("play_list")]
         public IActionResult GetPlayList([FromQuery] string sn)
@@ -203,44 +202,12 @@ namespace NetworkSoundBox.Controllers
                 return BadRequest(ex.Message);
             }
         }
-
-        //[Authorize(Policy = "Permission")]
-        //[HttpPost("delete_audio")]
-        //public IActionResult DeleteDeviceAudio([FromBody] DeleteDeviceAudioRequest request)
-        //{
-        //    if (string.IsNullOrEmpty(request.Sn)) 
-        //        return BadRequest("设备参数有误");
-        //    if (string.IsNullOrEmpty(request.AudioReferenceId))
-        //        return BadRequest("音频参数有误");
-
-        //    try
-        //    {
-        //        if (IsInGroup(request.Sn))
-        //            return BadRequest("处于设备组的设备不可编辑音频");
-
-        //        var deviceAudioEntity = (from deviceAudio in _dbContext.DeviceAudios
-        //                                 join device in _dbContext.Devices
-        //                                 on deviceAudio.DeviceReferenceId equals device.DeviceReferenceId
-        //                                 join userDevice in _dbContext.UserDevices
-        //                                 on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
-        //                                 where userDevice.UserRefrenceId == UserReferenceId
-        //                                 where device.Sn == request.Sn
-        //                                 where deviceAudio.AudioReferenceId == request.AudioReferenceId
-        //                                 select deviceAudio).FirstOrDefault();
-        //        if (deviceAudioEntity == null)
-        //            return Ok();
-        //        _dbContext.DeviceAudios.Remove(deviceAudioEntity);
-        //        _dbContext.SaveChanges();
-        //        return Ok();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "While DeleteDeviceAudio is invoked");
-        //        return BadRequest(ex.Message);
-        //    }
-        //}
-
-        [Authorize]
+        
+        /// <summary>
+        /// 获取设备组音频
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
         [Authorize(Policy = "Permission")]
         [HttpPost("play_list_group")]
         public IActionResult GetPlayListGroup([FromBody] GetPlayListGroupRequest request)
@@ -307,7 +274,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <param name="index">音频序号</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("delete_audio")]
         public IActionResult DeleteAudio([FromQuery] string sn, int index)
@@ -351,6 +317,12 @@ namespace NetworkSoundBox.Controllers
             return result ? Ok() : BadRequest("设备未响应");
         }
 
+        /// <summary>
+        /// 设备组删除音频
+        /// </summary>
+        /// <param name="deviceGroupReferenceId"></param>
+        /// <param name="audioReferenceId"></param>
+        /// <returns></returns>
         [Authorize(Policy = "Permission")]
         [HttpPost("delete_audio_group")]
         public IActionResult DeleteAudioGroup([FromQuery] string deviceGroupReferenceId,
@@ -437,7 +409,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <param name="index">音频序号</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("play_index")]
         public IActionResult PlayIndex([FromQuery] string sn, int index)
@@ -448,6 +419,12 @@ namespace NetworkSoundBox.Controllers
             return device.PlayIndex(index) ? Ok() : BadRequest("设备未响应");
         }
 
+        /// <summary>
+        /// 设备组播放指定音频
+        /// </summary>
+        /// <param name="deviceGroupReferenceId"></param>
+        /// <param name="audioReferenceId"></param>
+        /// <returns></returns>
         [Authorize(Policy = "Permission")]
         [HttpPost("play_audio_group")]
         public IActionResult PlayAudioGroup([FromQuery] string deviceGroupReferenceId,
@@ -512,7 +489,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <param name="action">1: 播放; 2: 暂停</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("play_pause")]
         public IActionResult PlayOrPause([FromQuery] string sn, int action)
@@ -528,7 +504,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="request">DeviceGroupReferenceId:String Action:Int(1:播放，2:暂停)</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("play_pause_group")]
         public IActionResult PlayOrPauseGroup([FromBody] PlayOrPauseGroupRequest request)
@@ -587,7 +562,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <param name="action">1: 下一首; 2: 上一首</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("next_previous")]
         public IActionResult NextOrPrevious([FromQuery] string sn, int action)
@@ -598,13 +572,11 @@ namespace NetworkSoundBox.Controllers
             return device.SendNextOrPrevious(action) ? Ok() : BadRequest("设备未响应");
         }
 
-
         /// <summary>
         /// 设备组下一首或上一首
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("next_previous_group")]
         public IActionResult NextOrPreviousGroup([FromBody] NextOrPreviousGroupRequest request)
@@ -663,7 +635,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn">SN</param>
         /// <param name="volume">音量(0~30)</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("volume")]
         public IActionResult Volume([FromQuery] string sn, int volume)
@@ -678,7 +649,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("volume_group")]
         public IActionResult VolumeGroup([FromBody] VolumeGroupRequest request)
@@ -736,7 +706,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="sn">SN</param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("reboot")]
         public IActionResult Reboot([FromQuery] string sn)
@@ -751,7 +720,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("reboot_group")]
         public IActionResult RebootGroup([FromBody] RebootGroupRequest request) 
@@ -807,7 +775,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="sn"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("restore")]
         public IActionResult Restore([FromQuery] string sn)
@@ -822,7 +789,6 @@ namespace NetworkSoundBox.Controllers
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("restore_group")]
         public IActionResult RestoreGroup([FromBody] RestoreGroupRequest request)
@@ -879,7 +845,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn"></param>
         /// <param name="dtos"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("cron_tasks")]
         public IActionResult SetCronTasks([FromQuery] string sn, [FromBody] IList<CronTaskDto> dtos)
@@ -928,6 +893,12 @@ namespace NetworkSoundBox.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// 设备组下发定时任务
+        /// </summary>
+        /// <param name="deviceGroupReferenceId"></param>
+        /// <param name="dtos"></param>
+        /// <returns></returns>
         [Authorize(Policy = "Permission")]
         [HttpPost("cron_task_group")]
         public IActionResult SetCronTaskGroup([FromQuery] string deviceGroupReferenceId,
@@ -1001,43 +972,12 @@ namespace NetworkSoundBox.Controllers
             return Ok($"部分成功. {taskErrorCnt}个任务设置失败, {deviceEntities}个设备无响应");
         }
 
-        ///// <summary>
-        ///// 下发定时任务
-        ///// </summary>
-        ///// <param name="sn"></param>
-        ///// <param name="dto"></param>
-        ///// <returns></returns>
-        //[Authorize]
-        //[Authorize(Policy = "Permission")]
-        //[HttpPost("cron_task")]
-        //public IActionResult SetAlarms([FromQuery] string sn, [FromBody] CronTaskDto dto)
-        //{
-        //    if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
-        //    var device = _deviceContext.DevicePool[sn];
-
-        //    List<byte> data = new()
-        //    {
-        //        (byte) dto.Index,
-        //        (byte) dto.StartTime.Hour,
-        //        (byte) dto.StartTime.Minute,
-        //        (byte) dto.EndTime.Hour,
-        //        (byte) dto.EndTime.Minute,
-        //        (byte) dto.Volume,
-        //        (byte) (dto.Relay ? 0x01 : 0x00)
-        //    };
-        //    dto.Weekdays.ForEach(d => { data.Add((byte) (d + 1)); });
-        //    data.Add((byte) dto.Audio);
-
-        //    return device.SendCronTask(data) ? Ok() : BadRequest("设备未响应");
-        //}
-
         /// <summary>
         /// 下发延时任务
         /// </summary>
         /// <param name="sn"></param>
         /// <param name="dto"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("delay_task")]
         public IActionResult SetAlarmsAfter([FromQuery] string sn, [FromBody] DelayTaskDto dto)
@@ -1063,7 +1003,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="sn"></param>
         /// <param name="formFile"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("file/sn{sn}")]
         public async Task<IActionResult> TransFile(string sn, IFormFile formFile)
@@ -1115,7 +1054,6 @@ namespace NetworkSoundBox.Controllers
         /// <param name="speed"></param>
         /// <param name="volume"></param>
         /// <returns></returns>
-        [Authorize]
         [Authorize(Policy = "Permission")]
         [HttpPost("upload_tts")]
         public async Task<IActionResult> UploadTts([FromQuery] string sn, string text, VCN vcn = VCN.XIAOYAN,
@@ -1183,54 +1121,11 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        ///// <summary>
-        ///// 流式传输文件
-        ///// </summary>
-        ///// <param name="fileToken"></param>
-        ///// <returns></returns>
-        //[HttpGet("download_file_stream")]
-        //public async Task<IActionResult> DownloadFileStream([FromQuery] string fileToken)
-        //{
-        //    if (!_deviceContext.AudioDict.TryGetValue(fileToken, out AudioTrxModel audioHandler))
-        //        return new EmptyResult();
-        //    try
-        //    {
-        //        FileInfo fileInfo = new($"{audioHandler.FilePath}/{audioHandler.FileName}");
-        //        byte[] contentBuffer = new byte[fileInfo.Length];
-        //        fileInfo.OpenRead().Read(contentBuffer, 0, contentBuffer.Length);
-
-        //        var contentDisposition = $"attachment;filename={HttpUtility.UrlEncode(fileInfo.Name)}";
-        //        Response.Headers.Add("Content-Disposition", new[] {contentDisposition});
-        //        Response.ContentType = "audio/mp3";
-        //        Response.ContentLength = contentBuffer.Length;
-        //        await using (Response.Body)
-        //        {
-        //            var hasSent = 0;
-
-        //            while (hasSent < contentBuffer.Length)
-        //            {
-        //                if (HttpContext.RequestAborted.IsCancellationRequested) break;
-        //                var sendLength = contentBuffer.Length - hasSent < 1024 ? contentBuffer.Length - hasSent : 1024;
-        //                ReadOnlyMemory<byte> readOnlyMemory = new(contentBuffer, hasSent, sendLength);
-        //                await Response.Body.WriteAsync(readOnlyMemory);
-        //                hasSent += sendLength;
-        //                await _notificationContext.SendDownloadProgress(100.0f * hasSent / contentBuffer.Length, audioHandler.Sn);
-        //                await Response.Body.FlushAsync();
-        //            }
-
-        //            audioHandler.TransferCplt(true);
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine(ex.Message);
-        //        _deviceContext.AudioDict.Remove(fileToken);
-        //        audioHandler.TransferCplt(false);
-        //    }
-
-        //    return new EmptyResult();
-        //}
-
+        /// <summary>
+        /// 设备调用 流式传输文件
+        /// </summary>
+        /// <param name="fileToken"></param>
+        /// <returns></returns>
         [HttpGet("download_file_stream")]
         public async Task<IActionResult> DownloadFileStreamNew([FromQuery] string fileToken)
         {
@@ -1267,6 +1162,12 @@ namespace NetworkSoundBox.Controllers
             return new EmptyResult();
         }
 
+        /// <summary>
+        /// 同步音频文件
+        /// </summary>
+        /// <param name="sn"></param>
+        /// <returns></returns>
+        [Authorize(Policy = "Permission")]
         [HttpPost("sync_device_audio")]
         public IActionResult SyncDeviceAudio([FromQuery] string sn)
         {
@@ -1274,14 +1175,11 @@ namespace NetworkSoundBox.Controllers
 
             var deviceAudioEntities =
                 (from deviceAudio in _dbContext.DeviceAudios
-                    join userDevice in _dbContext.UserDevices 
-                        on deviceAudio.DeviceReferenceId equals userDevice.DeviceRefrenceId
                     join audio in _dbContext.Audios
                         on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
                     join device in _dbContext.Devices
                         on deviceAudio.DeviceReferenceId equals  device.DeviceReferenceId
-                    where userDevice.UserRefrenceId == UserReferenceId &&
-                          device.Sn == sn && 
+                    where device.Sn == sn && 
                           deviceAudio.IsSynced == "N"
                     select new
                     {
@@ -1306,6 +1204,8 @@ namespace NetworkSoundBox.Controllers
             return Ok();
         }
 
+        #region Private Function
+
         private bool CheckPermission(string sn, PermissionType limit)
         {
             if (string.IsNullOrEmpty(UserReferenceId)) return false;
@@ -1323,13 +1223,13 @@ namespace NetworkSoundBox.Controllers
         {
             return (from device in _dbContext.Devices
                     join deviceGroupDevice in _dbContext.DeviceGroupDevices
-                    on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                        on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
                     join deviceGroupUser in _dbContext.DeviceGroupUsers
-                    on deviceGroupDevice.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                        on deviceGroupDevice.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
                     where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
                     where deviceGroupUser.UserReferenceId == userReferenceId
                     select device)
-                    .ToList();
+                .ToList();
         }
 
         private string GetUserReferenceId()
@@ -1340,13 +1240,13 @@ namespace NetworkSoundBox.Controllers
         private bool IsInGroup(string sn)
         {
             var deviceGroupDeviceEntity = (from deviceGroupDevice in _dbContext.DeviceGroupDevices
-                                           join deviceGroupUser in _dbContext.DeviceGroupUsers
-                                           on deviceGroupDevice.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
-                                           join device in _dbContext.Devices
-                                           on deviceGroupDevice.DeviceReferenceId equals device.DeviceReferenceId
-                                           where deviceGroupUser.UserReferenceId == UserReferenceId
-                                           where device.Sn == sn
-                                           select deviceGroupDevice).FirstOrDefault();
+                join deviceGroupUser in _dbContext.DeviceGroupUsers
+                    on deviceGroupDevice.DeviceGroupReferenceId equals deviceGroupUser.DeviceGroupReferenceId
+                join device in _dbContext.Devices
+                    on deviceGroupDevice.DeviceReferenceId equals device.DeviceReferenceId
+                where deviceGroupUser.UserReferenceId == UserReferenceId
+                where device.Sn == sn
+                select deviceGroupDevice).FirstOrDefault();
             return deviceGroupDeviceEntity != null;
         }
 
@@ -1394,5 +1294,7 @@ namespace NetworkSoundBox.Controllers
             _dbContext.SaveChanges();
             return true;
         }
+
+        #endregion
     }
 }

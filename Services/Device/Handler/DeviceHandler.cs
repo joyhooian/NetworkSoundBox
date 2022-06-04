@@ -106,7 +106,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 {
                     _heartbeat.Reset();
                     var message = InboxQueue.Take(_cts.Token);
-                    _logger.LogInformation(LogEvent.MsgRecv, $"[{Sn}]Recv[{message?.MessageLen}]bytes,CMD[{message?.Command.ToString()}],Data:{Convert.ToHexString(message?.Data.ToArray())}");
+                    _logger.LogInformation(LogEvent.MsgRecv, $"[{Sn}]Recv[{message?.MessageLen}]bytes,CMD[{message?.Command.ToString()}],Data:{Convert.ToHexString(message?.Data.ToArray() ?? Array.Empty<byte>())}");
                     var token = _messageContext.GetToken(message.Command);
                     switch (message.Command)
                     {
@@ -158,10 +158,8 @@ namespace NetworkSoundBox.Services.Device.Handler
                     if (e is not OperationCanceledException)
                     {
                         _logger.LogError(LogEvent.MsgRecv, e, $"[{Sn}]");
-                        //Console.WriteLine(e.Message);
                         continue;
                     }
-                    //Console.WriteLine($"[{Sn}]退出收件任务");
                     return;
                 }
             }
@@ -180,14 +178,15 @@ namespace NetworkSoundBox.Services.Device.Handler
                 try
                 {
                     message = _outboxQueue.Take(_cts.Token);
+                    _logger.LogInformation(LogEvent.MsgSend, $"[{Sn}]Send[{message?.MessageLen}]bytes,CMD[{message?.Command.ToString()}],Data:{Convert.ToHexString(message?.Data.ToArray() ?? Array.Empty<byte>())}");
                     retry.Reset();
                     while (retry.Set())
                     {
                         if (_cts.IsCancellationRequested)
                             throw new OperationCanceledException();
 
-                        message.Token?.SetSending();
-                        switch (message.Command)
+                        message?.Token?.SetSending();
+                        switch (message?.Command)
                         {
                             case Command.Login:
                             case Command.Heartbeat:
@@ -221,7 +220,6 @@ namespace NetworkSoundBox.Services.Device.Handler
                             default:
                                 throw new ArgumentException();
                         }
-
                         break;
                     }
                 }

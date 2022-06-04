@@ -49,7 +49,7 @@ namespace NetworkSoundBox.Services.Audios
                                 DeviceAudioKey = eventMsg.DeviceAudioKey,
                                 DeviceReferenceId = eventMsg.DeviceReferenceId,
                             });
-                            handler.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken));
+                            Task.Run(() => handler.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken)), stoppingToken);
                             break;
                         case OperationType.Delete:
                         default:
