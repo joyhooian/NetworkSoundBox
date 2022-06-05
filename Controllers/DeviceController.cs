@@ -1083,6 +1083,115 @@ namespace NetworkSoundBox.Controllers
         }
 
         /// <summary>
+        /// 查看设备定时开关状态
+        /// </summary>
+        /// <param name="sn"></param>
+        /// <returns></returns>
+        [Authorize(Policy = "Permission")]
+        [HttpPost("check_task_status")]
+        public IActionResult CheckTaskStatus([FromQuery] string sn)
+        {
+            if (!_deviceContext.DevicePool.TryGetValue(sn, out var deviceHandler))
+                return BadRequest("设备不在线");
+
+            return Ok(deviceHandler.SendCheckTaskStatus());
+        }
+
+        /// <summary>
+        /// 查看设备组定时开关状态
+        /// </summary>
+        /// <param name="deviceGroupReferenceId"></param>
+        /// <returns></returns>
+        [Authorize(Policy = "Permission")]
+        [HttpPost("check_task_status_group")]
+        public IActionResult CheckTaskStatusGroup([FromQuery] string deviceGroupReferenceId)
+        {
+            var deviceEntities =
+                (from device in _dbContext.Devices
+                    join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                        on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                    where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                    select device).ToList();
+            if (!deviceEntities.Any())
+                return Ok();
+
+            var results = new List<bool>();
+            foreach (var device in deviceEntities)
+            {
+                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                    continue;
+                results.Add(deviceHandler.SendCheckTaskStatus());
+            }
+
+            if (results.All(x => x))
+                return Ok("全部打开");
+            if (results.All(x => !x))
+                return Ok("全部关闭");
+            return Ok("部分打开");
+        }
+
+        /// <summary>
+        /// 设置设备定时状态
+        /// </summary>
+        /// <param name="sn"></param>
+        /// <param name="status"></param>
+        /// <returns></returns>
+        [Authorize(Policy = "Permission")]
+        [HttpPost("set_task_status")]
+        public IActionResult SetTaskStatus([FromQuery] string sn, [FromQuery] bool status)
+        {
+            if (!_deviceContext.DevicePool.TryGetValue(sn, out var deviceHandler))
+                return BadRequest("设备不在线");
+
+            if (status)
+                return deviceHandler.SendOpenTask() ? Ok() : BadRequest("设备未响应");
+            return deviceHandler.SendCloseTask() ? Ok() : BadRequest("设备未响应");
+        }
+
+        /// <summary>
+        /// 设置设备组定时状态
+        /// </summary>
+        /// <param name="deviceGroupReferenceId"></param>
+        /// <param name="status"></param>
+        /// <returns></returns>
+        [Authorize(Policy = "Permission")]
+        [HttpPost("set_task_status_group")]
+        public IActionResult SetTaskStatusGroup([FromQuery] string deviceGroupReferenceId, bool status)
+        {
+            var errorCnt = 0;
+            var deviceEntities =
+                (from device in _dbContext.Devices
+                    join deviceGroupDevice in _dbContext.DeviceGroupDevices
+                        on device.DeviceReferenceId equals deviceGroupDevice.DeviceReferenceId
+                    where deviceGroupDevice.DeviceGroupReferenceId == deviceGroupReferenceId
+                    select device).ToList();
+            if (!deviceEntities.Any())
+                return Ok("设备组没有成员设备");
+
+            foreach (var device in deviceEntities)
+            {
+                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                {
+                    errorCnt++;
+                    continue;
+                }
+
+                if (status)
+                {
+                    if (!deviceHandler.SendOpenTask())
+                        errorCnt++;
+                }
+                else
+                {
+                    if (!deviceHandler.SendCloseTask())
+                        errorCnt++;
+                }
+            }
+
+            return Ok($"成功{deviceEntities.Count - errorCnt}个，失败{errorCnt}个");
+        }
+
+        /// <summary>
         /// 上传文件
         /// </summary>
         /// <param name="sn"></param>
@@ -1121,6 +1230,8 @@ namespace NetworkSoundBox.Controllers
             AudioTrxModel dto = new()
             {
                 FileName = fileName,
+                AudioPath = fullPath,
+                Sn = sn
             };
             var fileToken = Guid.NewGuid().ToString("N")[..8];
             _deviceContext.AudioDict.Add(fileToken, dto);
@@ -1175,6 +1286,8 @@ namespace NetworkSoundBox.Controllers
                     var audioTransferDto = new AudioTrxModel()
                     {
                         FileName = fileName,
+                        AudioPath = fullPath,
+                        Sn = sn
                     };
                     var fileToken = Guid.NewGuid().ToString("N")[..8];
                     _deviceContext.AudioDict.Add(fileToken, audioTransferDto);
@@ -1217,7 +1330,7 @@ namespace NetworkSoundBox.Controllers
             var result = false;
             try
             {
-                var fileContent = await System.IO.File.ReadAllBytesAsync($"{_audioRootPath}{audioHandler.AudioPath}");
+                var fileContent = await System.IO.File.ReadAllBytesAsync($"{audioHandler.AudioPath}");
 
                 var contentDisposition = $"attachment;filename={DateTime.UtcNow.Ticks.ToString()}.mp3";
                 Response.Headers.Add("Content-Disposition", new[] { contentDisposition });
@@ -1226,7 +1339,10 @@ namespace NetworkSoundBox.Controllers
 
                 await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-                result = UpdateDeviceAudio(audioHandler.DeviceAudioKey);
+                result = audioHandler.DeviceAudioKey != null ? 
+                    UpdateDeviceAudioRecord((int)audioHandler.DeviceAudioKey) : 
+                    AddDeviceAudioRecord(audioHandler.Sn);
+                
                 if (!result) return new EmptyResult();
 
                 await HttpSendFile(fileContent);
@@ -1278,7 +1394,7 @@ namespace NetworkSoundBox.Controllers
             {
                 _helper.AddAudioSyncEvent(new AudioSyncEvent()
                 {
-                    AudioPath = entity.Audio.AudioPath,
+                    AudioPath = $"{_audioRootPath}{entity.Audio.AudioPath}",
                     DeviceAudioKey = entity.DeviceAudio.DeviceAudioKey,
                     DeviceReferenceId = entity.Device.DeviceReferenceId,
                     AudioReferenceId = entity.Audio.AudioReferenceId,
@@ -1352,7 +1468,7 @@ namespace NetworkSoundBox.Controllers
             }
         }
 
-        private bool UpdateDeviceAudio(int deviceAudioKey)
+        private bool UpdateDeviceAudioRecord(int deviceAudioKey)
         {
             var deviceEntity = (from deviceAudio in _dbContext.DeviceAudios
                 join device in _dbContext.Devices
@@ -1360,23 +1476,53 @@ namespace NetworkSoundBox.Controllers
                 where deviceAudio.DeviceAudioKey == deviceAudioKey
                 select device).FirstOrDefault();
             if (deviceEntity == null) return false;
-            
+
             var deviceAudioEntity =
                 (from deviceAudio in _dbContext.DeviceAudios
                     where deviceAudio.DeviceAudioKey == deviceAudioKey
                     select deviceAudio).FirstOrDefault();
             if (deviceAudioEntity == null) return false;
-            
+
             var index =
                 ((from deviceAudio in _dbContext.DeviceAudios
                     where deviceAudio.DeviceReferenceId == deviceEntity.DeviceReferenceId &&
                           deviceAudio.IsSynced == "Y"
                     orderby deviceAudio.Index descending
                     select deviceAudio.Index).FirstOrDefault() ?? 0) + 1;
-            
+
             deviceAudioEntity.Index = index;
             deviceAudioEntity.IsSynced = "Y";
             _dbContext.DeviceAudios.Update(deviceAudioEntity);
+            _dbContext.SaveChanges();
+            return true;
+        }
+        
+        private bool AddDeviceAudioRecord(string sn)
+        {
+            var deviceEntity =
+                (from device in _dbContext.Devices
+                    where device.Sn == sn
+                    select device).FirstOrDefault();
+            if (deviceEntity == null)
+                return false;
+
+            var index =
+                ((from deviceAudio in _dbContext.DeviceAudios
+                    where deviceAudio.DeviceReferenceId == deviceEntity.DeviceReferenceId &&
+                          deviceAudio.IsSynced == "Y" &&
+                          deviceAudio.Index != null
+                    orderby deviceAudio.Index descending
+                    select deviceAudio.Index).FirstOrDefault() ?? 0) + 1;
+
+            var deviceAudioEntity = new DeviceAudio()
+            {
+                DeviceReferenceId = deviceEntity.DeviceReferenceId,
+                AudioReferenceId = null,
+                IsSynced = "Y",
+                Index = index
+            };
+
+            _dbContext.DeviceAudios.Add(deviceAudioEntity);
             _dbContext.SaveChanges();
             return true;
         }

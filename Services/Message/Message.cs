@@ -47,7 +47,12 @@ namespace NetworkSoundBox.Services.Message
         FastBackward = 0xF6,
         PlayIndex = 0xF7,
         ReadFilesList = 0xF8,
-        DeleteFile = 0xF9
+        DeleteFile = 0xF9,
+        
+        //Task Switch
+        TaskOn = 0xFA,
+        TaskOff = 0xFB,
+        TaskQuery = 0xFC
     }
 
     public enum MessageStatus

@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 
 namespace NetworkSoundBox.Controllers
 {
@@ -27,18 +28,20 @@ namespace NetworkSoundBox.Controllers
         private readonly ILogger<DeviceGroupController> _logger;
         private readonly IMapper _mapper;
         private readonly IAudioProcessorHelper _helper;
-
+        private readonly string _audioRootPath;
 
         public DeviceGroupController(
             MySqlDbContext dbContext,
             ILogger<DeviceGroupController> logger,
             IMapper mapper,
-            IAudioProcessorHelper helper)
+            IAudioProcessorHelper helper,
+            IConfiguration configuration)
         {
             _dbContext = dbContext;
             _logger = logger;
             _mapper = mapper;
             _helper = helper;
+            _audioRootPath = configuration["AudioRootPath"];
         }
 
         /// <summary>
@@ -736,7 +739,7 @@ namespace NetworkSoundBox.Controllers
                     {
                         _helper.AddAudioSyncEvent(new AudioSyncEvent()
                         {
-                            AudioPath = entity.Audio.AudioPath,
+                            AudioPath = $"{_audioRootPath}{entity.Audio.AudioPath}",
                             DeviceAudioKey = entity.DeviceAudio.DeviceAudioKey,
                             DeviceReferenceId = entity.Device.DeviceReferenceId,
                             AudioReferenceId = entity.Audio.AudioReferenceId,

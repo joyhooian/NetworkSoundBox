@@ -546,6 +546,59 @@ namespace NetworkSoundBox.Services.Device.Handler
             }
         }
 
+        public bool SendCheckTaskStatus()
+        {
+            var token = new MessageToken(Command.TaskQuery);
+            _messageContext.SetToken(token);
+            Outbound outbound = new(Command.TaskQuery, token);
+            try
+            {
+                _outboxQueue.Add(outbound, _cts.Token);
+                if (MessageStatus.Replied == token.Wait() && token.RepliedData.Length == 1)
+                {
+                    return token.RepliedData[0] == 0x01;
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public bool SendOpenTask()
+        {
+            var token = new MessageToken(Command.TaskOn);
+            _messageContext.SetToken(token);
+            Outbound outbound = new(Command.TaskOn, token);
+            try
+            {
+                _outboxQueue.Add(outbound, _cts.Token);
+                return token.Wait() == MessageStatus.Replied;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        public bool SendCloseTask()
+        {
+            var token = new MessageToken(Command.TaskOff);
+            _messageContext.SetToken(token);
+            Outbound outbound = new(Command.TaskOff, token);
+            try
+            {
+                _outboxQueue.Add(outbound, _cts.Token);
+                return token.Wait() == MessageStatus.Replied;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         #endregion
 
         #region 设备控制
