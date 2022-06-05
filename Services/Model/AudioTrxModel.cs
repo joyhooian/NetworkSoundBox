@@ -10,6 +10,8 @@ namespace NetworkSoundBox.Services.Model
         public string AudioPath { get; set; }
         public int DeviceAudioKey { get; set; }
         public string DeviceReferenceId { get; set; }
+        public string Sn { get; set; }
+        public string AudioReferenceId { get; set; }
         private readonly Semaphore _transferSemaphore;
         private bool _transferCpltFlag;
 

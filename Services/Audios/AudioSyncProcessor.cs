@@ -48,6 +48,8 @@ namespace NetworkSoundBox.Services.Audios
                                 AudioPath = eventMsg.AudioPath,
                                 DeviceAudioKey = eventMsg.DeviceAudioKey,
                                 DeviceReferenceId = eventMsg.DeviceReferenceId,
+                                AudioReferenceId = eventMsg.AudioReferenceId,
+                                Sn = eventMsg.Sn
                             });
                             Task.Run(() => handler.ReqFileTrans(Encoding.ASCII.GetBytes(fileToken)), stoppingToken);
                             break;
@@ -62,12 +64,13 @@ namespace NetworkSoundBox.Services.Audios
 
     public class AudioSyncEvent
     {
-        public OperationType OperationType { get; set; }
-        public string Sn { get; set; }
-        public string FileName { get; set; }
-        public string AudioPath { get; set; }
-        public int DeviceAudioKey { get; set; }
-        public string DeviceReferenceId { get; set; }
+        public OperationType OperationType { get; init; }
+        public string Sn { get; init; }
+        public string FileName { get; init; }
+        public string AudioPath { get; init; }
+        public int DeviceAudioKey { get; init; }
+        public string DeviceReferenceId { get; init; }
+        public string AudioReferenceId { get; init; }
     }
 
     public enum OperationType

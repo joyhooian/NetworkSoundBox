@@ -718,7 +718,7 @@ namespace NetworkSoundBox.Controllers
 
             deviceEntities.ForEach(deviceEntity =>
             {
-                var deviceAudioEntities =
+                var entities =
                 (from deviceAudio in _dbContext.DeviceAudios
                  join audio in _dbContext.Audios
                      on deviceAudio.AudioReferenceId equals audio.AudioReferenceId
@@ -730,18 +730,19 @@ namespace NetworkSoundBox.Controllers
                      Audio = audio,
                      Device = deviceEntity
                  }).ToList();
-                if (deviceAudioEntities.Any())
+                if (entities.Any())
                 {
-                    deviceAudioEntities.ForEach(audio =>
+                    entities.ForEach(entity =>
                     {
                         _helper.AddAudioSyncEvent(new AudioSyncEvent()
                         {
-                            AudioPath = audio.Audio.AudioPath,
-                            DeviceAudioKey = audio.DeviceAudio.DeviceAudioKey,
-                            DeviceReferenceId = audio.Device.DeviceReferenceId,
-                            FileName = audio.Audio.AudioName,
+                            AudioPath = entity.Audio.AudioPath,
+                            DeviceAudioKey = entity.DeviceAudio.DeviceAudioKey,
+                            DeviceReferenceId = entity.Device.DeviceReferenceId,
+                            AudioReferenceId = entity.Audio.AudioReferenceId,
+                            FileName = entity.Audio.AudioName,
                             OperationType = OperationType.Add,
-                            Sn = audio.Device.Sn
+                            Sn = entity.Device.Sn
                         });
                     });
                 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
@@ -46,15 +47,23 @@ namespace NetworkSoundBox.Middleware.Hubs
         }
 
         public Task SendDeviceOffline(string sn)
-            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DeviceOnline(sn);
+            => _hubContext.Clients.Users(GetUserReferenceIdListBySn(sn)).DeviceOffline(sn);
 
         public Task SendDeviceOnline(string sn)
-            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DeviceOnline(sn);
+            => _hubContext.Clients.Users(GetUserReferenceIdListBySn(sn)).DeviceOnline(sn);
 
         public Task SendDownloadProgress(float progress, string sn)
-            => _hubContext.Clients.Users(GetUserRefrenceIdList(sn)).DownloadProgress(progress.ToString());
+            => _hubContext.Clients.Users(GetUserReferenceIdListBySn(sn)).DownloadProgress(progress.ToString(CultureInfo.InvariantCulture));
 
-        private List<string> GetUserRefrenceIdList(string sn)
+        public Task SendAudioSyncComplete(string sn, string audioReferenceId)
+            => _hubContext.Clients.Users(GetUserReferenceIdListBySn(sn))
+                .AudioSyncComplete(sn, audioReferenceId);
+        
+        public Task SendAudioSyncFail(string sn, string audioReferenceId)
+            => _hubContext.Clients.Users(GetUserReferenceIdListBySn(sn))
+                .AudioSyncFail(sn, audioReferenceId);
+
+        private List<string> GetUserReferenceIdListBySn(string sn)
         {
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<MySqlDbContext>();
