@@ -146,6 +146,9 @@ namespace NetworkSoundBox.Services.Device.Handler
                         case Command.PlayIndex:
                         case Command.ReadFilesList:
                         case Command.DeleteFile:
+                        case Command.TaskOn:
+                        case Command.TaskOff:
+                        case Command.TaskQuery:
                             token?.SetData(message.Data);
                             token?.SetReplied();
                             break;
@@ -214,6 +217,9 @@ namespace NetworkSoundBox.Services.Device.Handler
                             case Command.FileTransRptWifi:
                             case Command.FileTransReqCell:
                             case Command.FileTransRptCell:
+                            case Command.TaskOn:
+                            case Command.TaskOff:
+                            case Command.TaskQuery:
                                 _socket.BeginSend(message.Data.ToArray(), 0, message.MessageLen, SocketFlags.None,
                                     SocketSendCb, message);
                                 break;
