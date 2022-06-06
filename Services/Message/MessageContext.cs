@@ -12,12 +12,15 @@ namespace NetworkSoundBox.Services.Message
 
         public void SetToken(MessageToken token)
         {
-            if (_messageTokens.TryGetValue(token.ExpRplCmd, out var t))
-            {
-                t.Status = MessageStatus.Canceled;
-                _messageTokens.Remove(t.ExpRplCmd);
+            lock(_messageTokens){
+                if (_messageTokens.TryGetValue(token.ExpRplCmd, out var t))
+                {
+                    t.Status = MessageStatus.Canceled;
+                    _messageTokens.Remove(t.ExpRplCmd);
+                }
+
+                _messageTokens.Add(token.ExpRplCmd, token);
             }
-            _messageTokens.Add(token.ExpRplCmd, token);
         }
     }
 }

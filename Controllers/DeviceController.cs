@@ -18,6 +18,7 @@ using Newtonsoft.Json;
 using Nsb.Type;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
@@ -1345,9 +1346,25 @@ namespace NetworkSoundBox.Controllers
                 
                 if (!result) return new EmptyResult();
 
-                await HttpSendFile(fileContent);
+                await using (Response.Body)
+                {
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    var hasSent = 0;
+                    while (hasSent < fileContent.Length)
+                    {
+                        if (HttpContext.RequestAborted.IsCancellationRequested) break;
+                        var sendLength = fileContent.Length - hasSent < 1024 ? fileContent.Length - hasSent : 1024;
+                        var buffer = new ReadOnlyMemory<byte>(fileContent, hasSent, sendLength);
+                        await Response.Body.WriteAsync(buffer);
+                        hasSent += sendLength;
+                    }
+                    sw.Stop();
+                    _logger.LogInformation(LogEvent.DeviceControlApi, $"Download File Complete, time elapsed: {sw.ElapsedMilliseconds}ms");
+                }
 
                 await transaction.CommitAsync();
+                _logger.LogInformation(LogEvent.DeviceControlApi, $"Update records in DB");
                 await _notificationContext.SendAudioSyncComplete(audioHandler.Sn,
                     audioHandler.AudioReferenceId);
             }

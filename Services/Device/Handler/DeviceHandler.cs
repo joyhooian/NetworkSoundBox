@@ -886,7 +886,7 @@ namespace NetworkSoundBox.Services.Device.Handler
             var diff = audioCnt - deviceAudios.Count;
             var index = 1;
             if (deviceAudios.Count != 0)
-                index = deviceAudios.First().Index ?? 0 + 1;
+                index = (deviceAudios.First().Index ?? 0) + 1;
 
             var deviceAudioBatch = new List<DeviceAudio>();
             for (var i = 0; i < diff; i++)
