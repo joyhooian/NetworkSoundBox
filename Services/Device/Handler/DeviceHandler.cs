@@ -562,7 +562,7 @@ namespace NetworkSoundBox.Services.Device.Handler
                 _outboxQueue.Add(outbound, _cts.Token);
                 if (MessageStatus.Replied == token.Wait() && token.RepliedData.Length == 1)
                 {
-                    return token.RepliedData[0] == 0x01;
+                    return token.RepliedData[0] == 0x31;
                 }
 
                 return false;
