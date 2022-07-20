@@ -234,7 +234,6 @@ namespace NetworkSoundBox.Controllers
             using var sqlTransaction = _dbContext.Database.BeginTransaction();
             var deviceEntity = (from device in _dbContext.Devices
                 where device.ActivationKey == activeKey 
-                      && device.Sn == sn
                 select device).FirstOrDefault();
             if (deviceEntity == null)
             {
