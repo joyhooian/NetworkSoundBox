@@ -18,5 +18,6 @@ namespace NetworkSoundBox.Entities
         public string PlaylistReferenceId { get; set; }
         public DateTime? UpdateAt { get; set; }
         public DateTime CreateAt { get; set; }
+        public int ActiveCount { get; set; }
     }
 }

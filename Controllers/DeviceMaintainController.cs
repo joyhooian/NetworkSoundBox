@@ -230,32 +230,45 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("active")]
         public IActionResult Active([FromQuery] string sn, string activeKey)
         {
-            var userRefrenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
-            Device deviceEntity;
-            deviceEntity = (from device in _dbContext.Devices
-                            where device.ActivationKey == activeKey
-                            select device).FirstOrDefault();
+            var userReferenceId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            using var sqlTransaction = _dbContext.Database.BeginTransaction();
+            var deviceEntity = (from device in _dbContext.Devices
+                where device.ActivationKey == activeKey 
+                      && device.Sn == sn
+                select device).FirstOrDefault();
             if (deviceEntity == null)
             {
                 return BadRequest("无此设备");
             }
-            if (deviceEntity.IsActived == 1)
+            
+            var userDeviceEntity = (from userDevice in _dbContext.UserDevices
+                                    where userDevice.DeviceRefrenceId == deviceEntity.DeviceReferenceId &&
+                                          userDevice.UserRefrenceId == userReferenceId
+                                    select userDevice).FirstOrDefault();
+            if (userDeviceEntity != null)
             {
                 return Ok();
             }
-            if (deviceEntity.ActivationKey == activeKey)
+            
+            if (deviceEntity.ActiveCount >= 5)
             {
-                deviceEntity.IsActived = 1;
-                _dbContext.UserDevices.Add(new UserDevice()
-                {
-                    UserRefrenceId = userRefrenceId,
-                    DeviceRefrenceId = deviceEntity.DeviceReferenceId,
-                    Permission = (int)Nsb.Type.PermissionType.Admin
-                });
-                _dbContext.SaveChanges();
-                return Ok();
+                return BadRequest("达到激活上限");
             }
-            return BadRequest("未知错误");
+            
+            deviceEntity.ActiveCount++;
+            deviceEntity.IsActived = 1;
+            _dbContext.Devices.Update(deviceEntity);
+            _dbContext.SaveChanges();
+            
+            _dbContext.UserDevices.Add(new UserDevice()
+            {
+                UserRefrenceId = userReferenceId,
+                DeviceRefrenceId = deviceEntity.DeviceReferenceId,
+                Permission = (int)PermissionType.Admin
+            });
+            _dbContext.SaveChanges();
+            sqlTransaction.Commit();
+            return Ok();
         }
 
         [Authorize]

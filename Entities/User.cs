@@ -15,5 +15,8 @@ namespace NetworkSoundBox.Entities
         public int Role { get; set; }
         public DateTime? UpdateAt { get; set; }
         public DateTime CreateAt { get; set; }
+        public int UserTypeKey { get; set; }
+
+        public virtual UserType UserTypeKeyNavigation { get; set; }
     }
 }

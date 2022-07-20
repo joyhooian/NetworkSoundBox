@@ -35,6 +35,7 @@ namespace NetworkSoundBox.Entities
         public virtual DbSet<TaskType> TaskTypes { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<UserDevice> UserDevices { get; set; }
+        public virtual DbSet<UserType> UserTypes { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -263,6 +264,10 @@ namespace NetworkSoundBox.Entities
                     .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("activationKey");
+
+                entity.Property(e => e.ActiveCount)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("activeCount");
 
                 entity.Property(e => e.CreateAt)
                     .HasColumnType("datetime")
@@ -692,6 +697,8 @@ namespace NetworkSoundBox.Entities
             {
                 entity.ToTable("User");
 
+                entity.HasIndex(e => e.UserTypeKey, "User_UserType_userTypeKey_fk");
+
                 entity.Property(e => e.Id)
                     .HasColumnType("int(11)")
                     .HasColumnName("id");
@@ -728,6 +735,17 @@ namespace NetworkSoundBox.Entities
                     .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("userRefrenceId");
+
+                entity.Property(e => e.UserTypeKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("userTypeKey")
+                    .HasDefaultValueSql("'4'");
+
+                entity.HasOne(d => d.UserTypeKeyNavigation)
+                    .WithMany(p => p.Users)
+                    .HasForeignKey(d => d.UserTypeKey)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("User_UserType_userTypeKey_fk");
             });
 
             modelBuilder.Entity<UserDevice>(entity =>
@@ -762,6 +780,34 @@ namespace NetworkSoundBox.Entities
                     .IsRequired()
                     .HasMaxLength(255)
                     .HasColumnName("userRefrenceId");
+            });
+
+            modelBuilder.Entity<UserType>(entity =>
+            {
+                entity.HasKey(e => e.UserTypeKey)
+                    .HasName("PRIMARY");
+
+                entity.ToTable("UserType");
+
+                entity.Property(e => e.UserTypeKey)
+                    .HasColumnType("int(11)")
+                    .HasColumnName("userTypeKey");
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnType("datetime")
+                    .HasColumnName("createdAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(e => e.Type)
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnName("type");
+
+                entity.Property(e => e.UpdatedAt)
+                    .HasColumnType("datetime")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .HasColumnName("updatedAt")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             OnModelCreatingPartial(modelBuilder);
