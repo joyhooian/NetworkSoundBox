@@ -73,7 +73,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult GetPlayList([FromQuery] string sn)
         {
             if (!CheckPermission(sn, PermissionType.View)) return BadRequest("没有操作权限");
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             int result = device.GetPlayList();
             return result != -1 ? Ok(result) : BadRequest("设备未响应");
         }
@@ -229,7 +229,7 @@ namespace NetworkSoundBox.Controllers
 
                 deviceEntities.ForEach(deviceEntity =>
                 {
-                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                     {
                         if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
                         {
@@ -281,7 +281,7 @@ namespace NetworkSoundBox.Controllers
             if (IsInGroup(sn))
                 return BadRequest("处于设备组的设备不可编辑音频");
 
-            DeviceHandler deviceHandler = _deviceContext.DevicePool[sn];
+            DeviceHandler deviceHandler = _deviceContext.DevicePoolConCurrent[sn];
 
             var result = deviceHandler.DeleteAudio(index);
             if (result)
@@ -351,7 +351,7 @@ namespace NetworkSoundBox.Controllers
                 if (IsInGroup(entity.device.Sn))
                     return BadRequest("处于设备组的设备不可编辑音频");
 
-                if (!_deviceContext.DevicePool.TryGetValue(entity.device.Sn, out var deviceHandler))
+                if (!_deviceContext.DevicePoolConCurrent.TryGetValue(entity.device.Sn, out var deviceHandler))
                     return BadRequest("设备未在线");
 
                 // 删除已同步音频
@@ -423,7 +423,7 @@ namespace NetworkSoundBox.Controllers
 
                 foreach (var device in deviceEntities)
                 {
-                    if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                    if (!_deviceContext.DevicePoolConCurrent.TryGetValue(device.Sn, out var deviceHandler))
                     {
                         errorCnt++;
                         continue;
@@ -501,7 +501,7 @@ namespace NetworkSoundBox.Controllers
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
 
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.PlayIndex(index) ? Ok() : BadRequest("设备未响应");
         }
 
@@ -548,7 +548,7 @@ namespace NetworkSoundBox.Controllers
                         continue;
                     }
 
-                    if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                    if (!_deviceContext.DevicePoolConCurrent.TryGetValue(device.Sn, out var deviceHandler))
                     {
                         errorCnt++;
                         continue;
@@ -581,7 +581,7 @@ namespace NetworkSoundBox.Controllers
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
 
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.SendPlayOrPause(action) ? Ok() : BadRequest("设备未响应");
         }
 
@@ -614,7 +614,7 @@ namespace NetworkSoundBox.Controllers
 
                 deviceEntities.ForEach(deviceEntity =>
                 {
-                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                     {
                         if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
                         {
@@ -654,7 +654,7 @@ namespace NetworkSoundBox.Controllers
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
             _logger.LogInformation("NextOrPrevious");
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.SendNextOrPrevious(action) ? Ok() : BadRequest("设备未响应");
         }
 
@@ -686,7 +686,7 @@ namespace NetworkSoundBox.Controllers
                 var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferenceId);
                 deviceEntities.ForEach(deviceEntity =>
                 {
-                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                     {
                         if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
                         {
@@ -726,7 +726,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult Volume([FromQuery] string sn, int volume)
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.SendVolume(volume) ? Ok() : BadRequest("设备未响应");
         }
 
@@ -759,7 +759,7 @@ namespace NetworkSoundBox.Controllers
             {
                 deviceEntities.ForEach(deviceEntity =>
                     {
-                        if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                        if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                         {
                             if (!CheckPermission(deviceEntity.Sn, PermissionType.Control))
                             {
@@ -797,7 +797,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult Reboot([FromQuery] string sn)
         {
             if (!CheckPermission(sn, PermissionType.Admin)) return BadRequest("没有操作权限");
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.SendReboot() ? Ok() : BadRequest("设备未响应");
         }
 
@@ -828,7 +828,7 @@ namespace NetworkSoundBox.Controllers
                 var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferenceId);
                 deviceEntities.ForEach(deviceEntity =>
                 {
-                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                     {
                         if (!CheckPermission(device.Sn, PermissionType.Control))
                         {
@@ -866,7 +866,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult Restore([FromQuery] string sn)
         {
             if (!CheckPermission(sn, PermissionType.Admin)) return BadRequest("没有操作权限");
-            DeviceHandler device = _deviceContext.DevicePool[sn];
+            DeviceHandler device = _deviceContext.DevicePoolConCurrent[sn];
             return device.SendRestore() ? Ok() : BadRequest("设备未响应");
         }
 
@@ -897,7 +897,7 @@ namespace NetworkSoundBox.Controllers
                 var deviceEntities = GetGroupDevices(request.DeviceGroupReferenceId, userReferenceId);
                 deviceEntities.ForEach(deviceEntity =>
                 {
-                    if (_deviceContext.DevicePool.TryGetValue(deviceEntity.Sn, out var device))
+                    if (_deviceContext.DevicePoolConCurrent.TryGetValue(deviceEntity.Sn, out var device))
                     {
                         if (!CheckPermission(deviceEntity.Sn, PermissionType.Admin))
                         {
@@ -936,7 +936,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult SetCronTasks([FromQuery] string sn, [FromBody] IList<CronTaskDto> dtos)
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
-            var device = _deviceContext.DevicePool[sn];
+            var device = _deviceContext.DevicePoolConCurrent[sn];
 
             if (!device.SendCronTaskCount(dtos.Count)) return BadRequest("设置失败");
 
@@ -1003,7 +1003,7 @@ namespace NetworkSoundBox.Controllers
 
             foreach (var device in deviceEntities)
             {
-                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                if (!_deviceContext.DevicePoolConCurrent.TryGetValue(device.Sn, out var deviceHandler))
                 {
                     deviceErrorCnt++;
                     continue;
@@ -1069,7 +1069,7 @@ namespace NetworkSoundBox.Controllers
         public IActionResult SetAlarmsAfter([FromQuery] string sn, [FromBody] DelayTaskDto dto)
         {
             if (!CheckPermission(sn, PermissionType.Control)) return BadRequest("没有操作权限");
-            var device = _deviceContext.DevicePool[sn];
+            var device = _deviceContext.DevicePoolConCurrent[sn];
 
             List<byte> data = new()
             {
@@ -1092,7 +1092,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("check_task_status")]
         public IActionResult CheckTaskStatus([FromQuery] string sn)
         {
-            if (!_deviceContext.DevicePool.TryGetValue(sn, out var deviceHandler))
+            if (!_deviceContext.DevicePoolConCurrent.TryGetValue(sn, out var deviceHandler))
                 return BadRequest("设备不在线");
 
             return Ok(deviceHandler.SendCheckTaskStatus());
@@ -1119,7 +1119,7 @@ namespace NetworkSoundBox.Controllers
             var results = new List<bool>();
             foreach (var device in deviceEntities)
             {
-                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                if (!_deviceContext.DevicePoolConCurrent.TryGetValue(device.Sn, out var deviceHandler))
                     continue;
                 results.Add(deviceHandler.SendCheckTaskStatus());
             }
@@ -1141,7 +1141,7 @@ namespace NetworkSoundBox.Controllers
         [HttpPost("set_task_status")]
         public IActionResult SetTaskStatus([FromQuery] string sn, [FromQuery] bool status)
         {
-            if (!_deviceContext.DevicePool.TryGetValue(sn, out var deviceHandler))
+            if (!_deviceContext.DevicePoolConCurrent.TryGetValue(sn, out var deviceHandler))
                 return BadRequest("设备不在线");
 
             if (status)
@@ -1171,7 +1171,7 @@ namespace NetworkSoundBox.Controllers
 
             foreach (var device in deviceEntities)
             {
-                if (!_deviceContext.DevicePool.TryGetValue(device.Sn, out var deviceHandler))
+                if (!_deviceContext.DevicePoolConCurrent.TryGetValue(device.Sn, out var deviceHandler))
                 {
                     errorCnt++;
                     continue;
@@ -1217,7 +1217,7 @@ namespace NetworkSoundBox.Controllers
             binaryWriter.Close();
             fileStream.Close();
 
-            var device = _deviceContext.DevicePool[sn];
+            var device = _deviceContext.DevicePoolConCurrent[sn];
             // WiFi 设备传输
             if (device.Type == Nsb.Type.DeviceType.WiFi_Test)
             {
@@ -1272,7 +1272,7 @@ namespace NetworkSoundBox.Controllers
             fileStream.Close();
 
             // 判断设备类型并下发数据
-            var device = _deviceContext.DevicePool[sn];
+            var device = _deviceContext.DevicePoolConCurrent[sn];
             switch (device.Type)
             {
                 case Nsb.Type.DeviceType.WiFi_Test:

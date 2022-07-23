@@ -36,7 +36,7 @@ namespace NetworkSoundBox.Services.Audios
             while(!stoppingToken.IsCancellationRequested)
             {
                 var eventMsg = _helper.ProcessingQueue.Take(stoppingToken);
-                if (_deviceContext.DevicePool.TryGetValue(eventMsg.Sn, out var handler))
+                if (_deviceContext.DevicePoolConCurrent.TryGetValue(eventMsg.Sn, out var handler))
                 {
                     switch (eventMsg.OperationType)
                     {

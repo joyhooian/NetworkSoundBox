@@ -29,7 +29,7 @@ namespace NetworkSoundBox.Middleware.Filter
             if (context.ActionArguments.TryGetValue("sn", out var sn))
             {
                 if (string.IsNullOrEmpty(sn as string) ||
-                    !_deviceContext.DevicePool.ContainsKey(sn as string))
+                    !_deviceContext.DevicePoolConCurrent.ContainsKey(sn as string))
                 {
                     context.Result = new BadRequestObjectResult("无效SN或设备不在线");
                     base.OnActionExecuting(context);

@@ -71,7 +71,7 @@ namespace NetworkSoundBox.Controllers
             var userCount = _dbContext.Users.Count();
             var deviceCount = _dbContext.Devices.Count();
             var activedCount = _dbContext.Devices.Count(device => device.IsActived == 1);
-            var onlineCount = _deviceContext.DevicePool.Count;
+            var onlineCount = _deviceContext.DevicePoolConCurrent.Count;
 
             return JsonConvert.SerializeObject(new GetOverallAdminResponse
             {
@@ -98,7 +98,7 @@ namespace NetworkSoundBox.Controllers
             var onlineCount = 0;
             deviceList.ForEach(device =>
             {
-                if (_deviceContext.DevicePool.ContainsKey(device.Sn))
+                if (_deviceContext.DevicePoolConCurrent.ContainsKey(device.Sn))
                 {
                     onlineCount++;
                 }
@@ -342,7 +342,7 @@ namespace NetworkSoundBox.Controllers
                 devices.ForEach(device =>
                 {
                     var response = _mapper.Map<Device, GetDevicesCustomerResponse>(device);
-                    if (_deviceContext.DevicePool.ContainsKey(response.Sn))
+                    if (_deviceContext.DevicePoolConCurrent.ContainsKey(response.Sn))
                     {
                         response.IsOnline = true;
                     }
@@ -396,7 +396,7 @@ namespace NetworkSoundBox.Controllers
                 var deviceModels = _mapper.Map<List<Device>, List<GetDevicesCustomerResponse>>(deviceEntities);
                 deviceModels.ForEach(d =>
                 {
-                    if (_deviceContext.DevicePool.ContainsKey(d.Sn))
+                    if (_deviceContext.DevicePoolConCurrent.ContainsKey(d.Sn))
                     {
                         d.IsOnline = true;
                     }
@@ -423,7 +423,7 @@ namespace NetworkSoundBox.Controllers
                                     select userDevice).FirstOrDefault();
             if (userDeviceEntity == null) return BadRequest("没有权限");
 
-            return Ok(_deviceContext.DevicePool.ContainsKey(sn));
+            return Ok(_deviceContext.DevicePoolConCurrent.ContainsKey(sn));
         }
 
         [Authorize(Roles = "admin")]
@@ -436,7 +436,7 @@ namespace NetworkSoundBox.Controllers
             foreach (var device in devices)
             {
                 var response = _mapper.Map<Device, GetDevicesAdminResponse>(device);
-                if (_deviceContext.DevicePool.ContainsKey(device.Sn))
+                if (_deviceContext.DevicePoolConCurrent.ContainsKey(device.Sn))
                 {
                     response.IsOnline = true;
                 }

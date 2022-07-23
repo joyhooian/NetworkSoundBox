@@ -814,17 +814,17 @@ namespace NetworkSoundBox.Services.Device.Handler
             
 
             _notificationContext.SendDeviceOnline(Sn);
-            if (_deviceContext.DevicePool.TryGetValue(Sn, out var device))
+            if (_deviceContext.DevicePoolConCurrent.TryGetValue(Sn, out var deviceHandler))
             {
                 // 该设备已经登陆, 断开之前建立的Socket并替换为新设备
-                device.Close();
-                _deviceContext.DevicePool.Remove(Sn);
-                _logger.LogInformation(LogEvent.DeviceLogin, $"[{Sn}]Device re-login {device.IpAddress}:{device.Port} -> {IpAddress}:{Port}");
-                _deviceContext.DevicePool.Add(Sn, this);
+                deviceHandler.Close();
+                _deviceContext.DevicePoolConCurrent.TryRemove(Sn, out _);
+                _logger.LogInformation(LogEvent.DeviceLogin, $"[{Sn}]Device re-login {deviceHandler.IpAddress}:{deviceHandler.Port} -> {IpAddress}:{Port}");
+                _deviceContext.DevicePoolConCurrent.TryAdd(Sn, this);
             }
             else
             {
-                _deviceContext.DevicePool.Add(Sn, this);
+                _deviceContext.DevicePoolConCurrent.TryAdd(Sn, this);
                 _logger.LogInformation(LogEvent.DeviceLogin, $"[{Sn}]Device login @{IpAddress}:{Port}");
                 _outboxQueue.TryAdd(new Outbound(Command.Login, _deviceAuthorization.GetAuthorization(Sn)));
             }
@@ -844,10 +844,10 @@ namespace NetworkSoundBox.Services.Device.Handler
             try
             {
                 // 检查设备表中是否有Sn IP Socket与本机相同的设备
-                if (!_deviceContext.DevicePool.TryGetValue(Sn, out var device)) return;
+                if (!_deviceContext.DevicePoolConCurrent.TryGetValue(Sn, out var device)) return;
                 if (device.Port != Port || !device.IpAddress.Equals(IpAddress)) return;
                 _logger.LogInformation(LogEvent.DeviceDisconn, $"[{Sn}]Device is removed");
-                _deviceContext.DevicePool.Remove(Sn);
+                _deviceContext.DevicePoolConCurrent.TryRemove(Sn, out _);
 
                 // 更新最后在线时间
                 using var db = new MySqlDbContext(new DbContextOptionsBuilder<MySqlDbContext>().Options);

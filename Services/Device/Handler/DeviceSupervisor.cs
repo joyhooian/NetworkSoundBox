@@ -28,12 +28,12 @@ namespace NetworkSoundBox.Services.Device.Handler
             {
                 var index = 0;
                 _logger.LogInformation(LogEvent.ServerHost, "**************************************************************");
-                foreach (var (sn, deviceHandler) in _deviceContext.DevicePool)
+                foreach (var (sn, deviceHandler) in _deviceContext.DevicePoolConCurrent)
                 {
                     if (deviceHandler.IsHbOverflow)
                     {
                         deviceHandler.Dispose();
-                        _deviceContext.DevicePool.Remove(sn);
+                        _deviceContext.DevicePoolConCurrent.TryRemove(sn, out _);
                         _logger.LogInformation(LogEvent.ServerHost, $"Found zombie [{sn}], kick it out");
                     }
                     else
@@ -42,6 +42,20 @@ namespace NetworkSoundBox.Services.Device.Handler
                         index++;
                     }
                 }
+                //foreach (var (sn, deviceHandler) in _deviceContext.DevicePool)
+                //{
+                //    if (deviceHandler.IsHbOverflow)
+                //    {
+                //        deviceHandler.Dispose();
+                //        _deviceContext.DevicePool.Remove(sn);
+                //        _logger.LogInformation(LogEvent.ServerHost, $"Found zombie [{sn}], kick it out");
+                //    }
+                //    else
+                //    {
+                //        _logger.LogInformation(LogEvent.ServerHost, $"{index:D5} Device[{sn}]is online @{deviceHandler.IpAddress}:{deviceHandler.Port}");
+                //        index++;
+                //    }
+                //}
                 _logger.LogInformation(LogEvent.ServerHost, $"Has {index} devices online");
                 _logger.LogInformation(LogEvent.ServerHost, "**************************************************************");
                 Thread.Sleep(10_000);
@@ -51,7 +65,7 @@ namespace NetworkSoundBox.Services.Device.Handler
 
         private void KillAll()
         {
-            foreach (var (sn, deviceHandler) in _deviceContext.DevicePool)
+            foreach (var (sn, deviceHandler) in _deviceContext.DevicePoolConCurrent)
             {
                 deviceHandler.Dispose();
             }
